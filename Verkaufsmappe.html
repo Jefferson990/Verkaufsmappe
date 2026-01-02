@@ -1,0 +1,1907 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aktionsmappe Verwaltung (Lokal)</title>
+    <!-- Tailwind CSS laden -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Konfiguriere Tailwind für die Inter-Schriftart -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Dezenter, professioneller Verlauf */
+            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+            background-attachment: fixed; 
+            color: #1e293b; 
+        }
+
+        /* Custom Styling for the switch */
+        .toggle-switch input:checked + .slider {
+            background-color: #2563eb;
+        }
+        .toggle-switch input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        /* Badge Animation */
+        @keyframes pulse-badge {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .badge-pulse {
+            animation: pulse-badge 2s infinite;
+        }
+
+        /* Helper Klassen für Druck/Screen Umschaltung */
+        .print-only-text { display: none; }
+
+        /* --- DRUCK / PDF STYLING --- */
+        @media print {
+            /* QUERFORMAT (Landscape) und A4 */
+            @page { 
+                size: A4 landscape; 
+                margin: 1.0cm; 
+            }
+            
+            body { 
+                /* WICHTIG: Hintergrundfarben erzwingen */
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
+                color-adjust: exact !important;
+                
+                /* Hintergrund auch im Druck nutzen */
+                background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%) !important;
+                
+                font-size: 10pt;
+                height: auto !important;
+                padding-top: 5px !important;
+                color: #000 !important;
+            }
+            
+            html {
+                height: auto !important;
+                background-color: #f8fafc !important; 
+            }
+
+            /* Elemente ausblenden */
+            .no-print, 
+            .screen-only-text, /* Neue Klasse um Dashboard Text auszublenden */
+            #admin-view, 
+            #status-message, 
+            .toggle-switch, 
+            header button, 
+            header label, 
+            #incentive-submit-btn,
+            #submit-btn,
+            #push-submit-btn,
+            .admin-controls,
+            #admin-search-container,
+            #user-search-container,
+            #pdf-upload-section,
+            #visit-counter-display,
+            #data-backup-section,
+            #email-update-btn { 
+                display: none !important; 
+            }
+            
+            /* Elemente einblenden */
+            .print-only-text {
+                display: inline-block !important;
+            }
+
+            /* --- SEITE 1: HEADER & INCENTIVES --- */
+
+            /* Header zentriert und kompakt */
+            header {
+                box-shadow: none !important;
+                margin-bottom: 10px !important; 
+                padding: 0 !important;
+                position: static !important;
+                display: block !important;
+                text-align: center !important; 
+                background: transparent !important; 
+            }
+            
+            header .header-content {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important; 
+                width: 100%;
+                border-bottom: 2px solid #2563eb;
+                padding-bottom: 5px;
+            }
+
+            header h1 {
+                font-size: 16pt !important;
+                color: #000 !important;
+                margin: 0 !important;
+            }
+            /* Die alte Regel "header h1 span { display: none; }" entfernen wir hier bzw. überschreiben sie,
+               damit unser Print-Title Span angezeigt wird */
+            header h1 span.screen-only-text { display: none !important; }
+            
+            .hetec-logo {
+                background-color: transparent !important;
+                color: #1d4ed8 !important;
+                border: none !important;
+                font-size: 14pt !important;
+                margin-right: 15px !important;
+            }
+
+            /* Haupttitel "Aktionen und Incentives" */
+            #user-view h2.text-3xl {
+                font-size: 14pt !important;
+                margin-bottom: 10px !important;
+                margin-top: 0 !important;
+            }
+
+            /* Push Provisionen Liste (Seite 1) */
+            #user-push-list {
+                display: flex !important;
+                flex-wrap: wrap;
+                gap: 8px !important;
+                margin-bottom: 10px !important;
+                justify-content: flex-start !important; 
+            }
+            #user-push-list > div {
+                width: 48% !important; 
+                padding: 6px !important;
+                border: 1px solid #999;
+                box-shadow: none !important;
+                background: white !important; 
+                page-break-inside: avoid !important;
+            }
+            #user-push-list img { width: 25px !important; height: 25px !important; }
+            #user-push-list h4 { font-size: 10pt !important; margin: 0 !important; }
+
+            /* Incentives Liste (Seite 1) */
+            #user-incentive-list {
+                display: flex !important;
+                flex-wrap: wrap;
+                gap: 8px !important;
+                margin-bottom: 10px !important;
+                justify-content: flex-start !important; 
+            }
+            #user-incentive-list > div {
+                width: 48% !important;
+                padding: 6px !important;
+                box-shadow: none !important;
+                border: 1px solid #999;
+                background: white !important;
+                page-break-inside: avoid !important;
+            }
+            #user-incentive-list img { width: 35px !important; height: 35px !important; }
+            #user-incentive-list h4 { font-size: 10pt !important; margin-bottom: 2px; }
+            #user-incentive-list p { font-size: 9pt !important; }
+
+            /* --- SEITE 2: GERÄTE-AKTIONEN & TOC --- */
+            
+            /* ERZWINGT SEITENUMBRUCH VOR "Geräte-Aktionen" */
+            #device-actions-header {
+                break-before: page !important;
+                page-break-before: always !important;
+                margin-top: 20px !important; 
+                display: block !important;
+                font-size: 16pt !important;
+                color: #1d4ed8 !important;
+                border-bottom: 2px solid #1d4ed8 !important;
+                padding-bottom: 5px !important;
+            }
+            
+            /* TOC direkt darunter auf Seite 2 */
+            #toc-container {
+                padding: 10px !important;
+                background: white !important;
+                box-shadow: none !important;
+                margin-bottom: 20px !important; 
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                text-align: center !important; 
+                
+                /* Zusammenhalten mit Header */
+                break-before: avoid !important;
+                page-break-before: avoid !important;
+                
+                margin-left: 5% !important;
+                margin-right: 5% !important;
+                width: 90% !important;
+            }
+            
+            #toc-container h3 { font-size: 11pt !important; margin-bottom: 6px !important; }
+            #toc-container .grid { display: flex !important; flex-wrap: wrap; gap: 5px !important; justify-content: center !important; }
+            
+            /* WICHTIG: Links im Druck optimieren */
+            #toc-container a {
+                border: 1px solid #999; 
+                background: transparent !important; /* Transparent hilft bei der Klickbarkeit */
+                padding: 3px 6px !important;
+                font-size: 9pt !important;
+                text-decoration: none !important;
+                color: #000 !important;
+                display: inline-block !important; /* Stellt sicher, dass es ein Block für den Klick ist */
+            }
+
+            /* --- KACHELN / INHALT (AB SEITE 3 oder nach TOC) --- */
+            
+            /* Der Inhalt startet nach dem TOC. Wenn TOC groß ist, automatisch Seite 3 */
+            #user-view-content {
+                margin-top: 10px !important; 
+            }
+            
+            /* Kachel-Layout */
+            #user-view-content .grid {
+                display: block !important; 
+                text-align: left !important; 
+            }
+            
+            #user-view-content .grid > div {
+                display: inline-block !important;
+                width: 32% !important; 
+                margin-right: 1% !important;
+                margin-bottom: 15px !important;
+                vertical-align: top !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                border: 1px solid #999 !important;
+                box-shadow: none !important;
+                background: white !important;
+            }
+            
+            /* Seitenumbruch nach jeder 3. Kachellogik beibehalten */
+            #user-view-content .page-break-after-3 {
+                break-after: page !important;
+                page-break-after: always !important;
+            }
+
+            /* Diverse Abstände & Größen für Druck */
+            .mt-10 { margin-top: 15px !important; }
+            .pt-4 { padding-top: 5px !important; }
+            .mb-6, .mb-12 { margin-bottom: 10px !important; }
+            h3.text-3xl { 
+                font-size: 13pt !important; 
+                border-bottom: 1px solid #2563eb; 
+                padding-bottom: 5px; 
+                text-align: left !important;
+                margin-top: 15px !important;
+            }
+            .relative.h-48 { height: 110px !important; padding: 5px !important; } 
+            .p-5 { padding: 6px !important; }
+            h2.text-2xl { font-size: 11pt !important; }
+            .text-xs { font-size: 8pt !important; }
+            .space-y-2 { margin-bottom: 3px !important; }
+            
+            /* PDF Viewer */
+            #user-pdf-container:not(.hidden) {
+                break-before: page;
+                display: block !important;
+            }
+            #user-pdf-container.hidden { display: none !important; }
+            div:empty { display: none !important; }
+        }
+    </style>
+    
+    <!-- Script für Lokale Logik -->
+    <script>
+        // --- KONFIGURATION & STATE ---
+        const STORAGE_KEY_PROMOTIONS = 'am_promotions_data';
+        const STORAGE_KEY_INCENTIVES = 'am_incentives_data';
+        const STORAGE_KEY_PUSH = 'am_push_data';
+        const STORAGE_KEY_VISITS = 'am_visits_data';
+        const STORAGE_KEY_PDF = 'am_pdf_file_data';
+        const STORAGE_KEY_CHANGES = 'am_recent_changes'; // Neuer Key für Änderungen
+        
+        // Konstante für die hochgeladene PDF-Datei
+        const UPLOADED_PDF_FILE = {
+            contentFetchId: "uploaded:Aktionsmappe Neu 12.2025.pdf",
+            fileName: "Aktionsmappe Neu 12.2025.pdf"
+        };
+
+        let promotions = [];
+        let incentives = [];
+        let pushProvisions = []; 
+        let recentChanges = []; // Array für die Änderungen
+        let pdfData = null; 
+        
+        const predefinedProviders = ['o2', 'HeTec', 'GreenMnky', 'Freiertext'];
+
+        const generateId = () => {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        };
+
+        // --- DATEN LADE/SPEICHER LOGIK ---
+
+        async function loadData() {
+            try {
+                const pData = localStorage.getItem(STORAGE_KEY_PROMOTIONS);
+                const iData = localStorage.getItem(STORAGE_KEY_INCENTIVES);
+                const pushData = localStorage.getItem(STORAGE_KEY_PUSH);
+                let pdfLocal = localStorage.getItem(STORAGE_KEY_PDF);
+                const changesData = localStorage.getItem(STORAGE_KEY_CHANGES); // Änderungen laden
+
+                // ** NEUE LOGIK: Wenn LocalStorage leer ist, versuche hochgeladene Datei zu laden **
+                if (!pdfLocal) {
+                    try {
+                        const response = await fetch(`data/${UPLOADED_PDF_FILE.contentFetchId}`);
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            const base64 = await new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => resolve(reader.result);
+                                reader.readAsDataURL(blob);
+                            });
+                            const newPdfData = {
+                                name: UPLOADED_PDF_FILE.fileName,
+                                data: base64,
+                                date: new Date().toLocaleDateString()
+                            };
+                            localStorage.setItem(STORAGE_KEY_PDF, JSON.stringify(newPdfData));
+                            pdfLocal = JSON.stringify(newPdfData);
+                            showMessage("Hochgeladene PDF-Datei automatisch geladen.");
+                        }
+                    } catch (e) {
+                        console.warn("Konnte hochgeladene PDF nicht automatisch laden (wahrscheinlich nicht im Datenverzeichnis).", e);
+                    }
+                }
+                
+                promotions = pData ? JSON.parse(pData) : [];
+                incentives = iData ? JSON.parse(iData) : [];
+                recentChanges = changesData ? JSON.parse(changesData) : []; // Änderungen setzen
+                
+                // WICHTIG: Anpassung der Push-Datenstruktur beim Laden
+                pushProvisions = pushData ? JSON.parse(pushData).map(p => {
+                    if (!p.betrag && typeof p.titel === 'string' && p.titel.includes('€')) {
+                        const numericPart = parseFloat(p.titel.replace('€', '').trim());
+                        return {
+                            ...p,
+                            titel: 'Zusatz-Push',
+                            betrag: isNaN(numericPart) ? 0 : numericPart,
+                        };
+                    }
+                    p.betrag = p.betrag ? parseFloat(p.betrag) : 0;
+                    return p;
+                }) : [];
+                pdfData = pdfLocal ? JSON.parse(pdfLocal) : null;
+                
+                promotions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                incentives.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                pushProvisions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                refreshUI();
+            } catch (e) {
+                console.error("Fehler beim Laden der lokalen Daten", e);
+                showMessage("Fehler beim Laden der Daten", true);
+            }
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(promotions));
+                localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(incentives));
+                localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(pushProvisions));
+                // recentChanges wird separat gespeichert in addRecentChange
+                refreshUI();
+            } catch (e) {
+                console.error("Fehler beim Speichern", e);
+                showMessage("Speicherfehler (Speicher voll?)", true);
+            }
+        }
+
+        // --- UPDATE / EMAIL LOGIK ---
+
+        function addRecentChange(text) {
+            recentChanges.push(text);
+            localStorage.setItem(STORAGE_KEY_CHANGES, JSON.stringify(recentChanges));
+            refreshUI(); // Aktualisiert Badge
+        }
+
+        function sendUpdateEmail() {
+            if (recentChanges.length === 0) {
+                showMessage("Keine gespeicherten Änderungen zum Versenden.", true);
+                return;
+            }
+            
+            const subject = encodeURIComponent("News in der Aktionsmappe");
+            // E-Mail Body zusammenbauen
+            const bodyContent = "Hallo Zusammen,\n\nhier sind die neuesten Updates aus der Aktionsmappe:\n\n" + 
+                                recentChanges.map(c => "- " + c).join("\n") + 
+                                "\n\nBitte prüft die aktuelle Mappe für Details.\n\nViele Grüße";
+            const body = encodeURIComponent(bodyContent);
+            
+            // Mail Client öffnen
+            window.location.href = `mailto:?subject=${subject}&body=${body}`;
+            
+            // Nach kurzer Verzögerung fragen, ob Liste gelöscht werden soll
+            setTimeout(() => {
+                if(confirm("Hat sich das E-Mail Fenster geöffnet? Sollen die Änderungen nun aus der Liste 'ungesendet' entfernt werden?")) {
+                    recentChanges = [];
+                    localStorage.removeItem(STORAGE_KEY_CHANGES);
+                    refreshUI();
+                    showMessage("Änderungsliste zurückgesetzt.");
+                }
+            }, 1000);
+        }
+
+        function updateEmailButtonBadge() {
+            const badge = document.getElementById('email-badge');
+            if (recentChanges.length > 0) {
+                badge.textContent = recentChanges.length;
+                badge.classList.remove('hidden');
+                badge.classList.add('badge-pulse');
+            } else {
+                badge.classList.add('hidden');
+                badge.classList.remove('badge-pulse');
+            }
+        }
+
+        function refreshUI() {
+            if (typeof filterAdminPromotions === 'function') filterAdminPromotions(); 
+            if (typeof renderAdminIncentiveList === 'function') renderAdminIncentiveList(incentives);
+            if (typeof renderAdminPushList === 'function') renderAdminPushList(pushProvisions); 
+            
+            const userSearchInput = document.getElementById('user-search');
+            if (userSearchInput && userSearchInput.value) {
+                if (typeof handleUserSearch === 'function') handleUserSearch(); 
+            } else {
+                if (typeof renderUserView === 'function') renderUserView(promotions, incentives, pushProvisions);
+            }
+
+            if (typeof renderPdfView === 'function') renderPdfView(); 
+            updateEmailButtonBadge(); // Badge aktualisieren
+        }
+
+        // --- PDF LOGIK ---
+        
+        window.handlePdfUpload = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/pdf') {
+                showMessage("Bitte nur PDF-Dateien auswählen!", true);
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                if(!confirm("Die Datei ist größer als 5MB. Das Speichern im Browser könnte fehlschlagen. Trotzdem versuchen?")) {
+                    return;
+                }
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result;
+                const newPdfData = {
+                    name: file.name,
+                    data: base64,
+                    date: new Date().toLocaleDateString()
+                };
+
+                try {
+                    localStorage.setItem(STORAGE_KEY_PDF, JSON.stringify(newPdfData));
+                    pdfData = newPdfData;
+                    renderPdfView();
+                    showMessage("PDF erfolgreich gespeichert!");
+                } catch (err) {
+                    console.error(err);
+                    showMessage("Fehler: PDF zu groß für den lokalen Speicher!", true);
+                }
+            };
+            reader.readAsDataURL(file);
+        };
+
+        window.deletePdf = () => {
+            if(!confirm("Möchten Sie das gespeicherte PDF wirklich löschen?")) return;
+            localStorage.removeItem(STORAGE_KEY_PDF);
+            pdfData = null;
+            renderPdfView();
+            document.getElementById('pdf-upload-input').value = '';
+            showMessage("PDF gelöscht.");
+        };
+
+        function renderPdfView() {
+            const containerUser = document.getElementById('user-pdf-container');
+            const containerAdmin = document.getElementById('admin-pdf-preview');
+            const statusLabel = document.getElementById('pdf-status-label');
+
+            if (!pdfData) {
+                const noPdfHtml = '<p class="text-gray-400 italic">Keine PDF-Übersicht hinterlegt.</p>';
+                
+                // USER VIEW: Verstecken wenn leer!
+                if(containerUser) {
+                    containerUser.innerHTML = '';
+                    containerUser.classList.add('hidden'); // WICHTIG für Druck
+                }
+
+                if(containerAdmin) containerAdmin.innerHTML = noPdfHtml;
+                if(statusLabel) statusLabel.textContent = "Kein PDF ausgewählt";
+                return;
+            }
+
+            // Wenn PDF da ist:
+            if(statusLabel) statusLabel.textContent = `Aktuelles PDF: ${pdfData.name} (vom ${pdfData.date})`;
+
+            const embedHtml = `
+                <div class="mt-4 border-t-4 border-gray-800 bg-white rounded-xl shadow-lg p-4 break-before-page">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">📄 Aktionsübersicht (PDF)</h3>
+                        <span class="text-xs text-gray-500">${pdfData.name}</span>
+                    </div>
+                    <object data="${pdfData.data}" type="application/pdf" width="100%" height="800px" class="rounded border border-gray-200">
+                        <p>Ihr Browser kann dieses PDF nicht direkt anzeigen. <a href="${pdfData.data}" download="${pdfData.name}" class="text-blue-600 underline">Hier klicken zum Download</a>.</p>
+                    </object>
+                </div>
+            `;
+
+            if(containerUser) {
+                containerUser.innerHTML = embedHtml;
+                containerUser.classList.remove('hidden'); // Anzeigen
+            }
+            if(containerAdmin) containerAdmin.innerHTML = embedHtml;
+        }
+
+
+        // --- FILTER FUNKTIONEN (ADMIN & USER) ---
+        function filterAdminPromotions() {
+            const searchInput = document.getElementById('admin-search');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+            
+            let filteredList = promotions;
+            
+            if (searchTerm) {
+                filteredList = promotions.filter(p => 
+                    (p.geraetebezeichnung && p.geraetebezeichnung.toLowerCase().includes(searchTerm)) ||
+                    (p.anbieter && p.anbieter.toLowerCase().includes(searchTerm))
+                );
+            }
+            
+            renderAdminPromotionList(filteredList);
+        }
+
+        function handleUserSearch() {
+            const searchInput = document.getElementById('user-search');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
+            if (!searchTerm) {
+                renderUserView(promotions, incentives, pushProvisions);
+                return;
+            }
+
+            const filteredPromotions = promotions.filter(p => 
+                (p.geraetebezeichnung && p.geraetebezeichnung.toLowerCase().includes(searchTerm)) ||
+                (p.anbieter && p.anbieter.toLowerCase().includes(searchTerm)) ||
+                (p.bemerkung && p.bemerkung.toLowerCase().includes(searchTerm))
+            );
+
+            const filteredIncentives = incentives.filter(i => 
+                (i.titel && i.titel.toLowerCase().includes(searchTerm)) ||
+                (i.bemerkung && i.bemerkung.toLowerCase().includes(searchTerm))
+            );
+
+            const filteredPush = pushProvisions.filter(p => 
+                (p.titel && p.titel.toLowerCase().includes(searchTerm)) ||
+                (p.bemerkung && p.bemerkung.toLowerCase().includes(searchTerm))
+            );
+
+            renderUserView(filteredPromotions, filteredIncentives, filteredPush);
+        }
+
+        // --- BESUCHER TRACKING ---
+        const trackAndDisplayVisits = () => {
+            const today = new Date();
+            const currentMonthYear = `${today.getFullYear()}-${today.getMonth() + 1}`;
+            
+            let visitsData = { count: 0, monthYear: currentMonthYear };
+            const storedVisits = localStorage.getItem(STORAGE_KEY_VISITS);
+
+            if (storedVisits) {
+                try {
+                    const parsed = JSON.parse(storedVisits);
+                    if (parsed.monthYear === currentMonthYear) {
+                        visitsData = parsed;
+                    } else {
+                        visitsData.monthYear = currentMonthYear;
+                        visitsData.count = 0;
+                    }
+                } catch(e) {}
+            }
+
+            visitsData.count++;
+            localStorage.setItem(STORAGE_KEY_VISITS, JSON.stringify(visitsData));
+            
+            document.getElementById('visit-counter-display').textContent = `Besuche diesen Monat: ${visitsData.count}`;
+        };
+
+        // --- HELPER FUNKTIONEN ---
+
+        const calculateMargin = (einkauf, verkauf, noEK, noVK) => {
+            if (noEK || noVK) return null; 
+            const e = parseFloat(einkauf);
+            const v = parseFloat(verkauf);
+            if (isNaN(e) || isNaN(v)) return 'N/A';
+            return ((v / 1.19) - e).toFixed(2);
+        };
+
+        const showMessage = (message, isError = false) => {
+            const msgEl = document.getElementById('status-message');
+            msgEl.textContent = message;
+            msgEl.className = `p-3 mb-4 rounded-lg text-white ${isError ? 'bg-red-500' : 'bg-green-500'}`;
+            msgEl.classList.remove('hidden');
+            setTimeout(() => msgEl.classList.add('hidden'), 3000);
+        };
+
+        const isExpired = (endDateStr) => {
+            if (!endDateStr) return true; 
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const [year, month, day] = endDateStr.split('-').map(Number);
+            const endDate = new Date(Date.UTC(year, month - 1, day));
+            return endDate < today;
+        };
+
+        const formatCurrencyInput = (input) => {
+            let val = input.value.trim();
+            if (!val || val.includes('€')) return;
+            if (/\d/.test(val)) {
+                input.value = val + ' €';
+            }
+        };
+
+        window.exportToPdf = () => {
+            setTimeout(() => {
+                window.print();
+            }, 100);
+        };
+
+        window.togglePriceInput = (type, isChecked) => {
+            const input = document.getElementById(type === 'EK' ? 'einkaufspreis' : 'verkaufspreis');
+            if (isChecked) {
+                input.value = '';
+                input.disabled = true;
+                input.classList.add('bg-gray-100');
+            } else {
+                input.disabled = false;
+                input.classList.remove('bg-gray-100');
+            }
+            const eEl = document.getElementById('einkaufspreis');
+            const vEl = document.getElementById('verkaufspreis');
+            const margePreviewEl = document.getElementById('marge-preview');
+            if (eEl.disabled || vEl.disabled) {
+                margePreviewEl.textContent = 'Marge: -';
+                margePreviewEl.className = 'text-gray-400 font-semibold text-lg';
+            } else {
+                const e = parseFloat(eEl.value);
+                const v = parseFloat(vEl.value);
+                if (!isNaN(e) && !isNaN(v)) {
+                    const m = ((v / 1.19) - e);
+                    margePreviewEl.textContent = `Vorschau Marge (Netto): ${m.toFixed(2)} €`;
+                    margePreviewEl.className = `font-semibold ${m >= 0 ? 'text-green-600' : 'text-red-600'}`;
+                } else {
+                    margePreviewEl.textContent = '';
+                }
+            }
+        };
+
+        // --- BACKUP LOGIK ---
+
+        window.exportData = () => {
+            const dataToExport = {
+                promotions: promotions,
+                incentives: incentives,
+                pushProvisions: pushProvisions
+            };
+            const jsonString = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `aktionsmappe_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showMessage("Daten erfolgreich als JSON exportiert.");
+        };
+
+        window.importData = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+                showMessage("Bitte wählen Sie eine gültige JSON-Backup-Datei.", true);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsedData = JSON.parse(e.target.result);
+                    
+                    if (!parsedData.promotions || !parsedData.incentives || !parsedData.pushProvisions) {
+                         showMessage("Fehler: Die JSON-Datei hat nicht die erwartete Struktur.", true);
+                         return;
+                    }
+                    
+                    // Daten in LocalStorage speichern
+                    localStorage.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(parsedData.promotions));
+                    localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(parsedData.incentives));
+                    localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(parsedData.pushProvisions));
+                    
+                    // Daten neu laden und UI aktualisieren
+                    loadData();
+                    showMessage(`Daten von Backup-Datei erfolgreich wiederhergestellt!`);
+                } catch (err) {
+                    console.error("Import Fehler:", err);
+                    showMessage("Fehler beim Parsen der JSON-Datei. Ist sie beschädigt?", true);
+                }
+            };
+            reader.readAsText(file);
+        };
+
+
+        // --- CRUD ACTIONS (PUSH PROVISION) ---
+        window.savePushProvision = (event) => {
+            event.preventDefault();
+            const form = event.target;
+            
+            const betragValue = parseFloat(form.pushBetrag.value);
+            if (isNaN(betragValue) || betragValue <= 0) {
+                 showMessage("Bitte geben Sie einen gültigen Betrag (> 0) ein.", true);
+                 return;
+            }
+
+            const data = {
+                id: form.dataset.editingId || generateId(),
+                titel: form.pushTitel.value || 'Zusatz-Push', 
+                betrag: betragValue, 
+                start: form.pushStart.value,
+                end: form.pushEnd.value,
+                bemerkung: form.pushBemerkung.value,
+                createdAt: form.dataset.editingId ? (pushProvisions.find(p => p.id === form.dataset.editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+            };
+
+            // Tracking Logic für Push
+            let changeLogEntry = null;
+            if(!form.dataset.editingId) {
+                changeLogEntry = `💰 Neuer PUSH: ${data.titel} (${data.betrag.toFixed(2)}€) ab ${data.start}`;
+            } else {
+                // Tracking Änderung bei Push
+                 const oldPush = pushProvisions.find(p => p.id === form.dataset.editingId);
+                 if (oldPush && oldPush.betrag !== data.betrag) {
+                     if (data.betrag > oldPush.betrag) {
+                         changeLogEntry = `💰 PUSH ERHÖHT: ${data.titel} jetzt ${data.betrag.toFixed(2)}€ (vorher ${oldPush.betrag.toFixed(2)}€)`;
+                     } else {
+                         changeLogEntry = `📉 Push gesenkt: ${data.titel} auf ${data.betrag.toFixed(2)}€`;
+                     }
+                 }
+            }
+
+            if (form.dataset.editingId) {
+                const index = pushProvisions.findIndex(p => p.id === form.dataset.editingId);
+                if (index !== -1) pushProvisions[index] = data;
+                showMessage("Push Provision aktualisiert!");
+            } else {
+                pushProvisions.push(data);
+                showMessage("Push Provision gespeichert!");
+            }
+
+            if(changeLogEntry) addRecentChange(changeLogEntry);
+            saveData();
+            form.reset();
+            delete form.dataset.editingId;
+            document.getElementById('push-submit-btn').textContent = 'Push Speichern';
+        };
+
+        window.deletePushProvision = (id) => {
+            if (!confirm('Wirklich löschen?')) return;
+            pushProvisions = pushProvisions.filter(p => p.id !== id);
+            saveData();
+            showMessage("Push gelöscht.");
+        };
+
+        window.editPushProvision = (id) => {
+            const data = pushProvisions.find(p => p.id === id);
+            if (!data) return;
+
+            const form = document.getElementById('push-form');
+            form.pushTitel.value = data.titel || ''; 
+            form.pushBetrag.value = data.betrag || 0; 
+            form.pushStart.value = data.start || '';
+            form.pushEnd.value = data.end || '';
+            form.pushBemerkung.value = data.bemerkung || '';
+            
+            form.dataset.editingId = id;
+            document.getElementById('push-submit-btn').textContent = 'Änderungen Speichern';
+            document.getElementById('push-form').scrollIntoView({ behavior: 'smooth' });
+        };
+
+
+        // --- CRUD ACTIONS (PROMOTIONS) ---
+
+        window.savePromotion = (event) => {
+            event.preventDefault();
+            const form = event.target;
+            
+            let anbieterValue = form.anbieterSelect.value;
+            if (anbieterValue === 'Freiertext') {
+                anbieterValue = form.anbieterFreiertext.value;
+            }
+            if (!anbieterValue) {
+                 showMessage("Bitte geben Sie einen Anbieter ein.", true);
+                 return;
+            }
+
+            const data = {
+                id: form.dataset.editingId || generateId(),
+                anbieter: anbieterValue, 
+                geraetebezeichnung: form.geraetebezeichnung.value,
+                aktionsbeginn: form.aktionsbeginn.value,
+                aktionsende: form.aktionsende.value,
+                einkaufspreis: parseFloat(form.einkaufspreis.value) || 0,
+                verkaufspreis: parseFloat(form.verkaufspreis.value) || 0,
+                noEinkaufspreis: form.noEinkaufspreis.checked,
+                noVerkaufspreis: form.noVerkaufspreis.checked,
+                einmalzahlungXL: form.einmalzahlungXL.value,
+                einmalzahlungL: form.einmalzahlungL.value,
+                einmalzahlungM: form.einmalzahlungM.value,
+                einmalzahlungS: form.einmalzahlungS.value,
+                einmalzahlungHomeXL: form.einmalzahlungHomeXL.value,
+                einmalzahlungHomeL: form.einmalzahlungHomeL.value,
+                einmalzahlungHomeM: form.einmalzahlungHomeM.value,
+                einmalzahlungHomeS: form.einmalzahlungHomeS.value,
+                mobile: form.mobile.checked,
+                myhome: form.myhome.checked,
+                data: form.data.checked,
+                anschlussbefreiung: form.anschlussbefreiung.checked,
+                zusatzpush: form.zusatzpush.checked,
+                sonderprovision: form.sonderprovision.value,
+                bemerkung: form.bemerkung.value,
+                bildUrl: form.bildUrl.value,
+                hwBenefit24: form.hwBenefit24.value,
+                hwBenefit36: form.hwBenefit36.value,
+                createdAt: form.dataset.editingId ? (promotions.find(p => p.id === form.dataset.editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+            };
+
+            // --- TRACKING LOGIK FÜR UPDATE MAIL ---
+            let changesLog = []; // Liste für Änderungen
+            
+            if (form.dataset.editingId) {
+                // Bearbeitungsmodus
+                const oldData = promotions.find(p => p.id === form.dataset.editingId);
+                if (oldData) {
+                    const oldPrice = parseFloat(oldData.verkaufspreis);
+                    const newPrice = parseFloat(data.verkaufspreis);
+                    
+                    // 1. VK Preis Check
+                    if (!data.noVerkaufspreis && !oldData.noVerkaufspreis) {
+                        if (newPrice < oldPrice) {
+                            changesLog.push(`🔥 Preissturz: ${data.geraetebezeichnung} (${data.anbieter}) jetzt nur noch ${newPrice.toFixed(2)} € (statt ${oldPrice.toFixed(2)} €)!`);
+                        } else if (newPrice > oldPrice) {
+                            changesLog.push(`📈 Preisanstieg: ${data.geraetebezeichnung} (${data.anbieter}) jetzt ${newPrice.toFixed(2)} € (vorher ${oldPrice.toFixed(2)} €).`);
+                        }
+                    } 
+                    else if (!data.noVerkaufspreis && oldData.noVerkaufspreis) {
+                        changesLog.push(`🔥 Neu bepreist: ${data.geraetebezeichnung} (${data.anbieter}) jetzt für ${newPrice.toFixed(2)} €!`);
+                    }
+
+                    // 2. Einmalzahlungen Check (NEU)
+                    const ezFields = [
+                        { key: 'einmalzahlungXL', label: 'EZ Mobile XL' },
+                        { key: 'einmalzahlungL', label: 'EZ Mobile L' },
+                        { key: 'einmalzahlungM', label: 'EZ Mobile M' },
+                        { key: 'einmalzahlungS', label: 'EZ Mobile S' },
+                        { key: 'einmalzahlungHomeXL', label: 'EZ Home XL' },
+                        { key: 'einmalzahlungHomeL', label: 'EZ Home L' },
+                        { key: 'einmalzahlungHomeM', label: 'EZ Home M' },
+                        { key: 'einmalzahlungHomeS', label: 'EZ Home S' }
+                    ];
+                    
+                    const parseEZ = (val) => parseFloat(String(val).replace(/[^0-9,.-]/g, '').replace(',', '.') || 0);
+
+                    ezFields.forEach(field => {
+                        const oldRaw = oldData[field.key];
+                        const newRaw = data[field.key];
+
+                        if (oldRaw && newRaw) { 
+                            const oldEZ = parseEZ(oldRaw);
+                            const newEZ = parseEZ(newRaw);
+                            
+                            if (newEZ > oldEZ) {
+                                changesLog.push(`🔺 Anzahlung gestiegen (${field.label}): ${data.geraetebezeichnung} jetzt ${newRaw} (vorher ${oldRaw})`);
+                            } else if (newEZ < oldEZ) {
+                                changesLog.push(`🔻 Anzahlung gesunken (${field.label}): ${data.geraetebezeichnung} jetzt ${newRaw} (vorher ${oldRaw})`);
+                            }
+                        }
+                    });
+                }
+                const index = promotions.findIndex(p => p.id === form.dataset.editingId);
+                if (index !== -1) promotions[index] = data;
+                showMessage("Aktion lokal aktualisiert!");
+            } else {
+                // Neuer Eintrag
+                promotions.push(data);
+                const preisText = data.noVerkaufspreis ? 'Preis a.A.' : `${parseFloat(data.verkaufspreis).toFixed(2)} €`;
+                changesLog.push(`✨ Neu aufgenommen: ${data.geraetebezeichnung} (${data.anbieter}) für ${preisText}`);
+                showMessage("Aktion lokal gespeichert!");
+            }
+
+            // Alle Änderungen speichern
+            changesLog.forEach(log => addRecentChange(log));
+            // -------------------------------------
+
+            saveData();
+            form.reset();
+            delete form.dataset.editingId;
+            document.getElementById('submit-btn').textContent = 'Aktion Speichern';
+            toggleFreeText(null);
+            togglePriceInput('EK', false);
+            togglePriceInput('VK', false);
+        };
+
+        window.deletePromotion = (id) => {
+            if (!confirm('Sind Sie sicher, dass Sie diese Aktion löschen möchten?')) return;
+            promotions = promotions.filter(p => p.id !== id);
+            saveData();
+            showMessage("Aktion gelöscht.");
+        };
+
+        window.renewPromotion = (id) => {
+            const index = promotions.findIndex(p => p.id === id);
+            if (index === -1) return;
+
+            const today = new Date();
+            const renewalDate = new Date(today);
+            renewalDate.setDate(renewalDate.getDate() + 30);
+            const yyyy = renewalDate.getFullYear();
+            const mm = String(renewalDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(renewalDate.getDate()).padStart(2, '0');
+            promotions[index].aktionsende = `${yyyy}-${mm}-${dd}`;
+            saveData();
+            showMessage(`Verlängert bis ${dd}.${mm}.${yyyy}!`);
+        };
+
+        window.editPromotion = (id) => {
+            const data = promotions.find(p => p.id === id);
+            if (!data) return;
+
+            const form = document.getElementById('promotion-form');
+            const provider = data.anbieter || '';
+
+            if (predefinedProviders.includes(provider) && provider !== 'Freiertext') {
+                form.anbieterSelect.value = provider;
+                form.anbieterFreiertext.value = '';
+                toggleFreeText(false);
+            } else {
+                form.anbieterSelect.value = 'Freiertext';
+                form.anbieterFreiertext.value = provider;
+                toggleFreeText(true);
+            }
+            
+            form.geraetebezeichnung.value = data.geraetebezeichnung || '';
+            form.aktionsbeginn.value = data.aktionsbeginn || '';
+            form.aktionsende.value = data.aktionsende || '';
+            form.einkaufspreis.value = data.einkaufspreis || 0;
+            form.verkaufspreis.value = data.verkaufspreis || 0;
+            form.noEinkaufspreis.checked = !!data.noEinkaufspreis;
+            form.noVerkaufspreis.checked = !!data.noVerkaufspreis;
+            togglePriceInput('EK', !!data.noEinkaufspreis);
+            togglePriceInput('VK', !!data.noVerkaufspreis);
+            form.einmalzahlungXL.value = data.einmalzahlungXL || '';
+            form.einmalzahlungL.value = data.einmalzahlungL || '';
+            form.einmalzahlungM.value = data.einmalzahlungM || '';
+            form.einmalzahlungS.value = data.einmalzahlungS || '';
+            form.einmalzahlungHomeXL.value = data.einmalzahlungHomeXL || '';
+            form.einmalzahlungHomeL.value = data.einmalzahlungHomeL || '';
+            form.einmalzahlungHomeM.value = data.einmalzahlungHomeM || '';
+            form.einmalzahlungHomeS.value = data.einmalzahlungHomeS || '';
+            form.mobile.checked = data.mobile || false;
+            form.myhome.checked = data.myhome || false;
+            form.data.checked = data.data || false;
+            form.anschlussbefreiung.checked = data.anschlussbefreiung || false;
+            form.zusatzpush.checked = data.zusatzpush || false;
+            form.sonderprovision.value = data.sonderprovision || '';
+            form.bemerkung.value = data.bemerkung || '';
+            form.bildUrl.value = data.bildUrl || '';
+            form.hwBenefit24.value = data.hwBenefit24 || '';
+            form.hwBenefit36.value = data.hwBenefit36 || '';
+            
+            form.dataset.editingId = id;
+            document.getElementById('submit-btn').textContent = 'Änderungen Speichern';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        // --- CRUD ACTIONS (INCENTIVES) ---
+
+        window.saveIncentive = (event) => {
+            event.preventDefault();
+            const form = event.target;
+            
+            const data = {
+                id: form.dataset.editingId || generateId(),
+                titel: form.incentiveTitel.value,
+                incentiveStart: form.incentiveStart.value,
+                incentiveEnd: form.incentiveEnd.value,
+                bildUrl: form.incentiveBildUrl.value,
+                bemerkung: form.incentiveBemerkung.value,
+                priority: 1, 
+                createdAt: form.dataset.editingId ? (incentives.find(i => i.id === form.dataset.editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+            };
+
+            // Incentive Tracking
+            if(!form.dataset.editingId) {
+                addRecentChange(`⭐ Neues Incentive: ${data.titel}`);
+            }
+
+            if (form.dataset.editingId) {
+                const index = incentives.findIndex(i => i.id === form.dataset.editingId);
+                if (index !== -1) incentives[index] = data;
+                showMessage("Incentive aktualisiert!");
+            } else {
+                incentives.push(data);
+                showMessage("Incentive gespeichert!");
+            }
+
+            saveData();
+            form.reset();
+            delete form.dataset.editingId;
+            document.getElementById('incentive-submit-btn').textContent = 'Incentive Speichern';
+        };
+
+        window.deleteIncentive = (id) => {
+            if (!confirm('Löschen?')) return;
+            incentives = incentives.filter(i => i.id !== id);
+            saveData();
+            showMessage("Incentive gelöscht.");
+        };
+
+        window.editIncentive = (id) => {
+            const data = incentives.find(i => i.id === id);
+            if (!data) return;
+
+            const form = document.getElementById('incentive-form');
+            form.incentiveTitel.value = data.titel || '';
+            form.incentiveStart.value = data.incentiveStart || '';
+            form.incentiveEnd.value = data.incentiveEnd || '';
+            form.incentiveBildUrl.value = data.bildUrl || '';
+            form.incentiveBemerkung.value = data.bemerkung || '';
+            
+            form.dataset.editingId = id;
+            document.getElementById('incentive-submit-btn').textContent = 'Änderungen Speichern';
+            document.getElementById('incentive-form').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        window.renewIncentive = (id) => {
+            const index = incentives.findIndex(i => i.id === id);
+            if (index === -1) return;
+
+            const today = new Date();
+            const renewalDate = new Date(today);
+            renewalDate.setDate(renewalDate.getDate() + 30);
+            const yyyy = renewalDate.getFullYear();
+            const mm = String(renewalDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(renewalDate.getDate()).padStart(2, '0');
+            incentives[index].incentiveEnd = `${yyyy}-${mm}-${dd}`;
+            saveData();
+            showMessage(`Incentive verlängert bis ${dd}.${mm}.${yyyy}!`);
+        };
+
+        // --- RENDERING ---
+        
+        function renderAdminPushList(list) {
+            const listEl = document.getElementById('admin-push-list');
+            if (list.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-gray-400">Keine Push-Provisionen vorhanden.</p>';
+                return;
+            }
+            listEl.innerHTML = list.map(p => {
+                const expired = isExpired(p.end);
+                const betragDisplay = p.betrag > 0 ? `${p.betrag.toFixed(2)} €` : 'Betrag n.A.';
+                return `
+                    <div class="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mb-3 border-l-4 ${expired ? 'border-red-500' : 'border-green-500'}">
+                        <div>
+                            <p class="text-lg font-semibold text-gray-800">Push: ${p.titel || 'Extra'} (${betragDisplay}) ${expired ? '<span class="text-red-500 text-xs font-bold">(ABGELAUFEN)</span>' : ''}</p>
+                            <p class="text-xs text-gray-400">Zeitraum: ${p.start} bis ${p.end}</p>
+                        </div>
+                        <div class="flex space-x-2 admin-controls">
+                            <button onclick='editPushProvision("${p.id}")' class="p-2 text-sm bg-yellow-500 text-white rounded-full hover:bg-yellow-600">Bearbeiten</button>
+                            <button onclick='deletePushProvision("${p.id}")' class="p-2 text-sm bg-red-500 text-white rounded-full hover:bg-red-600">Löschen</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAdminPromotionList(list) {
+            const listEl = document.getElementById('admin-promotion-list');
+            if (list.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-gray-400">Keine Aktionen gefunden.</p>';
+                return;
+            }
+            listEl.innerHTML = list.map(p => {
+                const marge = calculateMargin(p.einkaufspreis, p.verkaufspreis, p.noEinkaufspreis, p.noVerkaufspreis);
+                const expired = isExpired(p.aktionsende); 
+                const einmalzahlungen = [
+                    p.einmalzahlungXL ? `XL: ${p.einmalzahlungXL}` : null,
+                    p.einmalzahlungL ? `L: ${p.einmalzahlungL}` : null,
+                    p.einmalzahlungM ? `M: ${p.einmalzahlungM}` : null,
+                    p.einmalzahlungS ? `S: ${p.einmalzahlungS}` : null
+                ].filter(Boolean).join(' | ');
+
+                let borderColor = 'border-gray-300';
+                if (expired) borderColor = 'border-red-500';
+                else if (marge === null) borderColor = 'border-blue-300'; 
+                else if (parseFloat(marge) >= 0) borderColor = 'border-green-500';
+                else borderColor = 'border-red-500';
+
+                const margeDisplay = marge !== null 
+                    ? `<span class="${parseFloat(marge) >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">${marge} €</span>` 
+                    : '<span class="text-gray-400">n.v.</span>';
+
+                const ekDisplay = p.noEinkaufspreis ? 'n.v.' : parseFloat(p.einkaufspreis).toFixed(2) + '€';
+                const vkDisplay = p.noVerkaufspreis ? 'n.v.' : parseFloat(p.verkaufspreis).toFixed(2) + '€';
+
+                return `
+                    <div class="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mb-3 border-l-4 ${borderColor}">
+                        <div>
+                            <p class="text-lg font-semibold text-gray-800">${p.geraetebezeichnung} (${p.anbieter}) ${expired ? '<span class="text-red-500 text-xs font-bold">(ABGELAUFEN)</span>' : ''}</p>
+                            <p class="text-sm text-gray-500">EK: ${ekDisplay} | VK: ${vkDisplay} | Marge (Netto): ${margeDisplay}</p>
+                            ${einmalzahlungen ? `<p class="text-xs text-gray-400">EZ Mobile: ${einmalzahlungen}</p>` : ''}
+                            <p class="text-xs text-gray-400">${p.aktionsbeginn} bis ${p.aktionsende}</p>
+                        </div>
+                        <div class="flex space-x-2 admin-controls">
+                            ${expired 
+                                ? `<button onclick='renewPromotion("${p.id}")' class="p-2 text-sm bg-purple-600 text-white rounded-full hover:bg-purple-700 transition duration-150">30 Tage Verlängern</button>`
+                                : `<button onclick='editPromotion("${p.id}")' class="p-2 text-sm bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition duration-150">Bearbeiten</button>`
+                            }
+                            <button onclick='deletePromotion("${p.id}")' class="p-2 text-sm bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150">Löschen</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAdminIncentiveList(list) {
+            const listEl = document.getElementById('admin-incentive-list');
+            if (list.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-gray-400">Keine Incentives vorhanden.</p>';
+                return;
+            }
+            listEl.innerHTML = list.map(p => {
+                const expired = isExpired(p.incentiveEnd);
+                return `
+                    <div class="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mb-3 border-l-4 ${expired ? 'border-red-500' : 'border-blue-500'}">
+                        <div>
+                            <p class="text-lg font-semibold text-gray-800">${p.titel || 'Incentive'} ${expired ? '<span class="text-red-500 text-xs font-bold">(ABGELAUFEN)</span>' : ''}</p>
+                            <p class="text-sm text-gray-600 mb-1">${p.bemerkung.substring(0, 50)}${p.bemerkung.length > 50 ? '...' : ''}</p>
+                            <p class="text-xs text-gray-400">Laufzeit: ${p.incentiveStart} bis ${p.incentiveEnd}</p>
+                        </div>
+                        <div class="flex space-x-2 admin-controls">
+                            ${expired 
+                                ? `<button onclick='renewIncentive("${p.id}")' class="p-2 text-sm bg-purple-600 text-white rounded-full hover:bg-purple-700 transition duration-150">30 Tage Verlängern</button>`
+                                : `<button onclick='editIncentive("${p.id}")' class="p-2 text-sm bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition duration-150">Bearbeiten</button>`
+                            }
+                            <button onclick='deleteIncentive("${p.id}")' class="p-2 text-sm bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150">Löschen</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderUserView(promotionsList, incentivesList, pushList) {
+            const tocContainerEl = document.getElementById('toc-container');
+            const viewEl = document.getElementById('user-view-content'); 
+            const incentiveListEl = document.getElementById('user-incentive-list');
+            const pushListEl = document.getElementById('user-push-list'); 
+            
+            // --- Push Provisions ---
+            const activePush = pushList.filter(p => !isExpired(p.end));
+            if (activePush.length > 0) {
+                pushListEl.innerHTML = activePush.map(p => {
+                    const betragDisplay = p.betrag > 0 ? `${p.betrag.toFixed(2)} €` : 'N.A.';
+                    return `
+                        <div class="break-inside-avoid print-break-avoid bg-white rounded-lg shadow-xl p-4 border-l-8 border-green-500 flex items-start space-x-4 hover:shadow-2xl transition duration-300">
+                            <img src="https://placehold.co/100x100/22c55e/ffffff?text=%E2%82%AC" 
+                                 alt="Euro Zeichen" class="w-20 h-20 object-contain rounded-md shadow flex-shrink-0">
+                            <div class="flex-grow">
+                                <h4 class="text-xl font-bold text-green-700">💰 PUSH: ${p.titel || 'Extra'} (${betragDisplay})</h4>
+                                <p class="text-lg text-gray-800 font-semibold max-h-full">${p.bemerkung}</p>
+                                <span class="text-xs text-gray-500 mt-2 block">Gültig: ${p.start} - ${p.end}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                pushListEl.parentElement.classList.remove('hidden'); 
+            } else {
+                pushListEl.innerHTML = '';
+                pushListEl.parentElement.classList.add('hidden'); 
+            }
+
+
+            // --- Incentives ---
+            const activeIncentives = incentivesList.filter(p => !isExpired(p.incentiveEnd));
+            if (activeIncentives.length > 0) {
+                incentiveListEl.innerHTML = activeIncentives.map(i => `
+                    <div class="break-inside-avoid print-break-avoid bg-white rounded-lg shadow-xl p-4 border-l-4 border-purple-500 flex items-start space-x-4 hover:shadow-2xl transition duration-300">
+                        <img src="${i.bildUrl || 'https://placehold.co/80x80/8b5cf6/ffffff?text=Incentive'}" 
+                             onerror="this.onerror=null;this.src='https://placehold.co/80x80/8b5cf6/ffffff?text=Incentive';" 
+                             alt="Incentive Bild" class="w-20 h-20 object-contain bg-white border border-gray-100 rounded-md shadow flex-shrink-0">
+                        <div class="flex-grow">
+                            <h4 class="text-lg font-bold text-purple-700">⭐ ${i.titel || 'Incentive'}</h4>
+                            <p class="text-sm text-gray-700 max-h-full">${i.bemerkung}</p>
+                            <span class="text-xs text-gray-400 mt-1 block">Aktion: ${i.incentiveStart} - ${i.incentiveEnd}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                incentiveListEl.innerHTML = '<p class="text-center text-gray-500 italic mt-4 col-span-full">Keine aktuellen Incentives.</p>';
+            }
+
+            // --- Promotions ---
+            const activePromotions = promotionsList.filter(p => !isExpired(p.aktionsende));
+            if (activePromotions.length === 0) {
+                viewEl.innerHTML = '<p class="text-center text-gray-500 mt-10 text-xl">Aktuell sind keine Geräte-Aktionen verfügbar.</p>';
+                tocContainerEl.innerHTML = ''; 
+                return;
+            }
+
+            const groupedPromotions = activePromotions.reduce((acc, p) => {
+                const anbieter = p.anbieter || 'Unbekannter Anbieter';
+                if (!acc[anbieter]) acc[anbieter] = [];
+                acc[anbieter].push(p);
+                return acc;
+            }, {});
+
+            const anbieterList = Object.keys(groupedPromotions).sort();
+
+            const tocHtml = anbieterList.map(anbieter => {
+                const safeId = anbieter.replace(/[^a-zA-Z0-9]/g, '_');
+                return `<a href="#${safeId}" class="block p-3 bg-blue-50 hover:bg-blue-100 rounded-lg text-blue-700 font-medium transition duration-150 shadow-sm hover:shadow-md text-center">${anbieter} (${groupedPromotions[anbieter].length})</a>`;
+            }).join('');
+            
+            // Inhaltsverzeichnis (TOC)
+            tocContainerEl.innerHTML = `
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-8 break-inside-avoid print-break-avoid">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Inhaltsangabe: Anbieter-Übersicht</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        ${tocHtml}
+                    </div>
+                </div>
+            `;
+
+            let groupedPromotionsHtml = '';
+            anbieterList.forEach(anbieter => {
+                const safeId = anbieter.replace(/[^a-zA-Z0-9]/g, '_');
+                groupedPromotionsHtml += `
+                    <div id="${safeId}" class="mt-10 pt-4 border-t-2 border-blue-600 break-after-avoid print-break-avoid">
+                        <h3 class="text-3xl font-extrabold text-blue-800 mb-6">${anbieter} Aktionen</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+                `;
+                
+                // Iteriere über die Aktionen dieser Kategorie und füge den Seitenumbruch nach 3 Elementen hinzu
+                groupedPromotions[anbieter].forEach((p, index) => {
+                    const marge = calculateMargin(p.einkaufspreis, p.verkaufspreis, p.noEinkaufspreis, p.noVerkaufspreis);
+                    const tariffs = [
+                        p.mobile ? 'Mobilfunk-Tarife' : '',
+                        p.myhome ? 'Festnetz-Tarife' : '',
+                        p.data ? 'Datentarife' : ''
+                    ].filter(Boolean);
+
+                    const hasHomeEz = p.einmalzahlungHomeXL || p.einmalzahlungHomeL || p.einmalzahlungHomeM || p.einmalzahlungHomeS;
+
+                    // Füge die CSS-Klasse zum Erzwingen des Seitenumbruchs hinzu, wenn es die 3., 6., 9. usw. Kachel ist UND es NICHT die letzte Kachel ist.
+                    const pageBreakClass = (index > 0 && (index + 1) % 3 === 0 && index !== (groupedPromotions[anbieter].length - 1)) 
+                                           ? 'page-break-after-3' 
+                                           : '';
+
+                    groupedPromotionsHtml += `
+                        <div class="break-inside-avoid print-break-avoid bg-white rounded-xl shadow-2xl overflow-hidden hover:shadow-3xl transform hover:-translate-y-1 transition duration-300 ${pageBreakClass}">
+                            <div class="relative h-48 bg-white flex items-center justify-center p-4">
+                                <img src="${p.bildUrl || 'https://placehold.co/400x200/2563eb/ffffff?text=Bild+Fehlt'}" 
+                                     onerror="this.onerror=null;this.src='https://placehold.co/400x200/2563eb/ffffff?text=Bild+Fehlt';" 
+                                     alt="${p.geraetebezeichnung}" class="w-full h-full object-contain">
+                                ${!p.noVerkaufspreis 
+                                    ? `<div class="absolute top-3 right-3 bg-red-600 text-white text-xs font-bold py-1 px-3 rounded-full shadow-lg">Verkaufspreis: ${parseFloat(p.verkaufspreis).toFixed(2)} €</div>` 
+                                    : ''
+                                }
+                            </div>
+                            <div class="p-5">
+                                <h2 class="text-2xl font-extrabold text-gray-900 mb-1">${p.geraetebezeichnung}</h2>
+                                <p class="text-sm font-medium text-blue-600 mb-3">${p.anbieter}</p>
+                                <div class="flex items-center text-sm text-gray-500 mb-4">
+                                    <span>Aktion: ${p.aktionsbeginn} - ${p.aktionsende}</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2 mb-4">
+                                    ${tariffs.map(t => `<span class="px-3 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">${t}</span>`).join('')}
+                                </div>
+                                <div class="space-y-2 mb-4">
+                                    ${p.anschlussbefreiung ? '<span class="flex items-center text-sm text-green-700 font-medium">✅ Anschlussbefreiung</span>' : ''}
+                                    ${p.zusatzpush ? '<span class="flex items-center text-sm text-purple-700 font-medium">⚡ Zusätzlicher Push</span>' : ''}
+                                    ${p.sonderprovision ? `<span class="flex items-center text-sm text-yellow-700 font-medium">💰 Sonderprovision: ${p.sonderprovision}</span>` : ''}
+                                </div>
+                                <div class="mt-4 space-y-2 border-t pt-4">
+                                    <p class="text-xs font-semibold text-gray-700">Hardware Benefits:</p>
+                                    ${p.hwBenefit24 ? `<a href="${p.hwBenefit24}" target="_blank" class="block text-sm text-blue-500 hover:text-blue-700 truncate">24 Monate Details</a>` : ''}
+                                    ${p.hwBenefit36 ? `<a href="${p.hwBenefit36}" target="_blank" class="block text-sm text-blue-500 hover:text-blue-700 truncate">36 Monate Details</a>` : ''}
+                                </div>
+                                ${p.bemerkung ? `<div class="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-700 italic">${p.bemerkung}</div>` : ''}
+                                <div class="mt-5 pt-3 border-t">
+                                    <p class="text-xs font-semibold text-gray-700 mb-1">Einmalzahlung o2 Mobile (Kunde):</p>
+                                    <div class="text-xs text-gray-500 grid grid-cols-2 gap-1">
+                                        ${p.einmalzahlungXL ? `<span><span class="font-bold">XL:</span> ${p.einmalzahlungXL}</span>` : ''}
+                                        ${p.einmalzahlungL ? `<span><span class="font-bold">L:</span> ${p.einmalzahlungL}</span>` : ''}
+                                        ${p.einmalzahlungM ? `<span><span class="font-bold">M:</span> ${p.einmalzahlungM}</span>` : ''}
+                                        ${p.einmalzahlungS ? `<span><span class="font-bold">S:</span> ${p.einmalzahlungS}</span>` : ''}
+                                    </div>
+
+                                    ${hasHomeEz ? `
+                                        <p class="text-xs font-semibold text-gray-700 mb-1 mt-2">Einmalzahlung o2 My Home (Kunde):</p>
+                                        <div class="text-xs text-gray-500 grid grid-cols-2 gap-1">
+                                            ${p.einmalzahlungHomeXL ? `<span><span class="font-bold">XL:</span> ${p.einmalzahlungHomeXL}</span>` : ''}
+                                            ${p.einmalzahlungHomeL ? `<span><span class="font-bold">L:</span> ${p.einmalzahlungHomeL}</span>` : ''}
+                                            ${p.einmalzahlungHomeM ? `<span><span class="font-bold">M:</span> ${p.einmalzahlungHomeM}</span>` : ''}
+                                            ${p.einmalzahlungHomeS ? `<span><span class="font-bold">S:</span> ${p.einmalzahlungHomeS}</span>` : ''}
+                                        </div>
+                                    ` : ''}
+                                    
+                                    <p class="text-xs text-gray-500 mt-2 pt-2 border-t">EK: ${p.noEinkaufspreis ? 'n.v.' : parseFloat(p.einkaufspreis).toFixed(2) + ' €'}</p>
+                                    <p class="text-md font-bold text-gray-800">Marge (Netto): ${marge !== null 
+                                        ? `<span class="${parseFloat(marge) >= 0 ? 'text-green-600' : 'text-red-600'}">${marge} €</span>` 
+                                        : '<span class="text-gray-400">n.v.</span>'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }); // Ende forEach Promotion
+                
+                groupedPromotionsHtml += `</div>`;
+            }); // Ende forEach Anbieter
+            
+            viewEl.innerHTML = groupedPromotionsHtml;
+        }
+
+        window.switchView = () => {
+            const isAdmin = document.getElementById('view-toggle').checked;
+            document.getElementById('admin-view').classList.toggle('hidden', !isAdmin);
+            document.getElementById('user-view').classList.toggle('hidden', isAdmin);
+            document.getElementById('view-name').textContent = isAdmin ? 'Admin-Ansicht' : 'Kunden-Ansicht';
+        };
+
+        window.toggleFreeText = (manualOverride) => {
+            const selectEl = document.getElementById('anbieterSelect');
+            const freitextContainer = document.getElementById('anbieter-freitext-container');
+            
+            let isFreeTextSelected;
+            if (manualOverride !== null) {
+                isFreeTextSelected = manualOverride;
+            } else {
+                isFreeTextSelected = selectEl.value === 'Freiertext';
+            }
+
+            freitextContainer.classList.toggle('hidden', !isFreeTextSelected);
+            const freitextInput = document.getElementById('anbieterFreiertext');
+            if (isFreeTextSelected) {
+                freitextInput.setAttribute('required', 'required');
+            } else {
+                freitextInput.removeAttribute('required');
+                freitextInput.value = ''; 
+            }
+        };
+
+        // --- INIT ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            trackAndDisplayVisits();
+            switchView(); 
+            toggleFreeText(false); 
+            
+            // --- NEU: Setze Druck-Datum ---
+            const today = new Date();
+            const dateStr = today.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const printTitleEl = document.getElementById('print-header-title');
+            if(printTitleEl) {
+                printTitleEl.textContent = `Aktionsmappe ${dateStr}`;
+            }
+            // ------------------------------
+            
+            const einkaufEl = document.getElementById('einkaufspreis');
+            const verkaufEl = document.getElementById('verkaufspreis');
+            const margePreviewEl = document.getElementById('marge-preview');
+            
+            const updateMarginPreview = () => {
+                if (einkaufEl.disabled || verkaufEl.disabled) {
+                    margePreviewEl.textContent = 'Marge: -';
+                    margePreviewEl.className = 'text-gray-400 font-semibold text-lg';
+                    return;
+                }
+                const marge = calculateMargin(einkaufEl.value, verkaufEl.value, false, false);
+                margePreviewEl.textContent = `Vorschau Marge (Netto): ${marge} €`;
+                margePreviewEl.className = `font-semibold ${parseFloat(marge) >= 0 ? 'text-green-600' : 'text-red-600'}`;
+            };
+
+            einkaufEl.addEventListener('input', updateMarginPreview);
+            verkaufEl.addEventListener('input', updateMarginPreview);
+            updateMarginPreview(); 
+
+            window.addEventListener('storage', (e) => {
+                if ([STORAGE_KEY_PROMOTIONS, STORAGE_KEY_INCENTIVES, STORAGE_KEY_VISITS, STORAGE_KEY_PUSH, STORAGE_KEY_PDF].includes(e.key)) {
+                    loadData();
+                }
+            });
+            
+            const currencyInputs = [
+                'einmalzahlungXL', 'einmalzahlungL', 'einmalzahlungM', 'einmalzahlungS',
+                'einmalzahlungHomeXL', 'einmalzahlungHomeL', 'einmalzahlungHomeM', 'einmalzahlungHomeS', 
+                'sonderprovision'
+            ];
+            currencyInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('blur', () => formatCurrencyInput(el));
+                }
+            });
+        });
+    </script>
+</head>
+<body class="min-h-screen">
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <!-- Header und View Switch -->
+        <header class="bg-white shadow-xl rounded-xl p-5 mb-8 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 no-print-shadow">
+            
+            <!-- LOGO UND TITEL CONTAINER -->
+            <div class="flex items-center header-content mb-4 md:mb-0">
+                <!-- HeTec GmbH LOGO -->
+                <div class="hetec-logo text-blue-700 font-extrabold text-xl mr-4 tracking-wider">
+                    HeTec GmbH
+                </div>
+                
+                <!-- NEU: DYNAMISCHER TITEL FÜR DRUCK -->
+                <h1 class="text-3xl font-extrabold text-gray-900">
+                    <span class="screen-only-text">Aktionsmappen-Dashboard</span>
+                    <span id="print-header-title" class="print-only-text">Aktionsmappe</span>
+                    <span class="text-sm font-normal text-gray-500 screen-only-text">(Lokal)</span>
+                </h1>
+            </div>
+
+            <div class="flex items-center space-x-6">
+                <!-- PDF / DRUCKEN BUTTON -->
+                <button onclick="exportToPdf()" class="flex items-center space-x-2 bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg transition shadow">
+                    <span>🖨️ PDF / Drucken</span>
+                </button>
+
+                <!-- NEU: EMAIL UPDATE BUTTON -->
+                <button id="email-update-btn" onclick="sendUpdateEmail()" class="relative flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition shadow">
+                    <span>✉️ Update-Mail senden</span>
+                    <!-- Badge für Anzahl der Änderungen -->
+                    <span id="email-badge" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full hidden">0</span>
+                </button>
+
+                <div class="flex items-center space-x-3">
+                    <label id="view-name" class="text-lg font-medium text-gray-700" for="view-toggle">Kunden-Ansicht</label>
+                    <label for="view-toggle" class="relative inline-block w-14 h-8 cursor-pointer toggle-switch">
+                        <input type="checkbox" id="view-toggle" class="opacity-0 w-0 h-0" onchange="switchView()">
+                        <span class="slider absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-300 rounded-full transition duration-400 before:absolute before:content-[''] before:h-6 before:w-6 before:left-1 before:bottom-1 before:bg-white before:rounded-full before:transition before:duration-400"></span>
+                    </label>
+                </div>
+            </div>
+        </header>
+
+        <!-- Statusmeldung -->
+        <div id="status-message" class="hidden text-center"></div>
+
+        <!-- 1. ADMIN-ANSICHT -->
+        <section id="admin-view" class="space-y-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">Admin-Bereich: Verwaltung (Lokal)</h2>
+            
+            <!-- Besuchszähler Anzeige -->
+            <div id="visit-counter-display" class="text-lg font-bold text-gray-600 p-3 bg-yellow-50 rounded-lg shadow-sm">
+                Besuche diesen Monat: Lade...
+            </div>
+            
+            <!-- PUSH PROVISION VERWALTUNG (NEU GANZ OBEN) -->
+            <div class="space-y-6 pt-2 pb-6 border-b-2 border-green-300 bg-green-50 rounded-lg p-4">
+                <h3 class="text-xl font-bold text-green-700 flex items-center">
+                    💰 Push Provision Verwaltung
+                </h3>
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-green-200">
+                    <form id="push-form" onsubmit="savePushProvision(event)" data-editing-id="">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- NEU: Titel / Bezeichnung -->
+                            <div class="md:col-span-2">
+                                <label for="pushTitel" class="block text-sm font-medium text-gray-700">Titel / Bezeichnung der Provision</label>
+                                <input type="text" id="pushTitel" name="pushTitel" placeholder="z.B. Black Friday Push" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required>
+                            </div>
+                            
+                            <!-- NEU: Betrag -->
+                            <div>
+                                <label for="pushBetrag" class="block text-sm font-medium text-gray-700">Betrag (€, numerisch)</label>
+                                <input type="number" step="0.01" id="pushBetrag" name="pushBetrag" placeholder="z.B. 30.00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required>
+                            </div>
+
+                            <!-- Start / Ende -->
+                            <div>
+                                <label for="pushStart" class="block text-sm font-medium text-gray-700">Push Start</label>
+                                <input type="date" id="pushStart" name="pushStart" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            <div>
+                                <label for="pushEnd" class="block text-sm font-medium text-gray-700">Push Ende</label>
+                                <input type="date" id="pushEnd" name="pushEnd" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            
+                            <!-- Bemerkungsfeld -->
+                            <div class="md:col-span-2">
+                                <label for="pushBemerkung" class="block text-sm font-medium text-gray-700">Bemerkung (Was gibt es extra?)</label>
+                                <textarea id="pushBemerkung" name="pushBemerkung" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required></textarea>
+                            </div>
+
+                        </div>
+                        <div class="mt-6">
+                            <button id="push-submit-btn" type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none transition duration-150">
+                                Push Speichern
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <h4 class="text-lg font-bold text-gray-800">Aktuelle Push-Provisionen</h4>
+                <div id="admin-push-list" class="space-y-4">
+                    <div class="text-center text-gray-500 p-4">Lade Push Provisionen...</div>
+                </div>
+            </div>
+            
+            
+            <!-- PROMOTIONS VERWALTUNG (Jetzt oben) -->
+            <h3 class="text-xl font-bold text-blue-600 pt-6 border-t border-gray-300">Geräte-Aktionseingabe</h3>
+
+            <!-- Eingabeformular -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <form id="promotion-form" onsubmit="savePromotion(event)" data-editing-id="">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        
+                        <!-- 1. Allgemeine Daten -->
+                        <div class="col-span-3 border-b pb-4 mb-4">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Basisdaten</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                
+                                <!-- Anbieter Dropdown -->
+                                <div>
+                                    <label for="anbieterSelect" class="block text-sm font-medium text-gray-700">Anbieter (Auswahl)</label>
+                                    <select id="anbieterSelect" name="anbieterSelect" required onchange="toggleFreeText(null)" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border bg-white">
+                                        <option value="" disabled selected>Wählen Sie einen Anbieter...</option>
+                                        <option value="o2">o2</option>
+                                        <option value="HeTec">HeTec</option>
+                                        <option value="GreenMnky">GreenMnky</option>
+                                        <option value="Freiertext">Andere / Freier Text</option>
+                                    </select>
+                                </div>
+
+                                <!-- Freitextfeld (optional) -->
+                                <div id="anbieter-freitext-container" class="hidden">
+                                    <label for="anbieterFreiertext" class="block text-sm font-medium text-gray-700">Anbieter (Freier Text)</label>
+                                    <input type="text" id="anbieterFreiertext" name="anbieterFreiertext" placeholder="Geben Sie den Anbieternamen ein" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                
+                                <div>
+                                    <label for="geraetebezeichnung" class="block text-sm font-medium text-gray-700">Gerätebezeichnung</label>
+                                    <input type="text" id="geraetebezeichnung" name="geraetebezeichnung" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                <div>
+                                    <label for="aktionsbeginn" class="block text-sm font-medium text-gray-700">Aktionsbeginn</label>
+                                    <input type="date" id="aktionsbeginn" name="aktionsbeginn" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                <div>
+                                    <label for="aktionsende" class="block text-sm font-medium text-gray-700">Aktionsende</label>
+                                    <input type="date" id="aktionsende" name="aktionsende" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Preis- und Margendaten -->
+                        <div class="col-span-3 border-b pb-4 mb-4">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Preise & Marge</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                
+                                <!-- EINKAUFSPREIS MIT CHECKBOX -->
+                                <div>
+                                    <label for="einkaufspreis" class="block text-sm font-medium text-gray-700">Einkaufspreis (€)</label>
+                                    <div class="mt-1 flex items-center gap-2">
+                                        <input type="number" step="0.01" id="einkaufspreis" name="einkaufspreis" required class="block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                        <div class="flex flex-col items-center">
+                                            <input type="checkbox" id="noEinkaufspreis" name="noEinkaufspreis" onchange="togglePriceInput('EK', this.checked)" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                            <label for="noEinkaufspreis" class="text-[10px] text-gray-500">n.v.</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- VERKAUFSPREIS MIT CHECKBOX -->
+                                <div>
+                                    <label for="verkaufspreis" class="block text-sm font-medium text-gray-700">Verkaufspreis (€)</label>
+                                    <div class="mt-1 flex items-center gap-2">
+                                        <input type="number" step="0.01" id="verkaufspreis" name="verkaufspreis" required class="block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                        <div class="flex flex-col items-center">
+                                            <input type="checkbox" id="noVerkaufspreis" name="noVerkaufspreis" onchange="togglePriceInput('VK', this.checked)" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                            <label for="noVerkaufspreis" class="text-[10px] text-gray-500">n.v.</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-end">
+                                    <p id="marge-preview" class="font-semibold text-lg"></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Strukturierte Einmalzahlung Mobile -->
+                            <div class="mt-4 col-span-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Einmalzahlung (o2 Mobile XL/L/M/S)</label>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <label for="einmalzahlungXL" class="block text-xs font-medium text-gray-500">XL (€)</label>
+                                        <input type="text" id="einmalzahlungXL" name="einmalzahlungXL" placeholder="z.B. 1€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungL" class="block text-xs font-medium text-gray-500">L (€)</label>
+                                        <input type="text" id="einmalzahlungL" name="einmalzahlungL" placeholder="z.B. 29,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungM" class="block text-xs font-medium text-gray-500">M (€)</label>
+                                        <input type="text" id="einmalzahlungM" name="einmalzahlungM" placeholder="z.B. 49,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungS" class="block text-xs font-medium text-gray-500">S (€)</label>
+                                        <input type="text" id="einmalzahlungS" name="einmalzahlungS" placeholder="z.B. 99,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Strukturierte Einmalzahlung Home -->
+                            <div class="mt-4 col-span-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Einmalzahlung (o2 My Home XL/L/M/S)</label>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <label for="einmalzahlungHomeXL" class="block text-xs font-medium text-gray-500">Home XL (€)</label>
+                                        <input type="text" id="einmalzahlungHomeXL" name="einmalzahlungHomeXL" placeholder="z.B. 1€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungHomeL" class="block text-xs font-medium text-gray-500">Home L (€)</label>
+                                        <input type="text" id="einmalzahlungHomeL" name="einmalzahlungHomeL" placeholder="z.b. 29,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungHomeM" class="block text-xs font-medium text-gray-500">Home M (€)</label>
+                                        <input type="text" id="einmalzahlungHomeM" name="einmalzahlungHomeM" placeholder="z.B. 49,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungHomeS" class="block text-xs font-medium text-gray-500">Home S (€)</label>
+                                        <input type="text" id="einmalzahlungHomeS" name="einmalzahlungHomeS" placeholder="z.B. 99,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- 3. Tarif-Gültigkeit -->
+                        <div class="col-span-3 border-b pb-4 mb-4">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Tarif-Gültigkeit</h3>
+                            <div class="flex flex-wrap gap-6">
+                                <div class="flex items-center">
+                                    <input id="mobile" name="mobile" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                    <label for="mobile" class="ml-2 block text-sm text-gray-700">o2 Mobile (XL/L/M/S)</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="myhome" name="myhome" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                    <label for="myhome" class="ml-2 block text-sm text-gray-700">o2 My Home (XL/L/M/S)</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="data" name="data" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                    <label for="data" class="ml-2 block text-sm text-gray-700">o2 Data (XL/L/M)</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4. Sonstiges -->
+                        <div class="col-span-3 border-b pb-4 mb-4">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Zusätzliche Infos</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="flex items-center">
+                                    <input id="anschlussbefreiung" name="anschlussbefreiung" type="checkbox" class="h-4 w-4 text-pink-600 border-gray-300 rounded">
+                                    <label for="anschlussbefreiung" class="ml-2 block text-sm text-gray-700">Anschlusspreisbefreiung</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="zusatzpush" name="zusatzpush" type="checkbox" class="h-4 w-4 text-pink-600 border-gray-300 rounded">
+                                    <label for="zusatzpush" class="ml-2 block text-sm text-gray-700">Zusätzlichen Push</label>
+                                </div>
+                                <div>
+                                    <label for="sonderprovision" class="block text-sm font-medium text-gray-700">Sonderprovision</label>
+                                    <input type="text" id="sonderprovision" name="sonderprovision" placeholder="z.B. +50€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <label for="bemerkung" class="block text-sm font-medium text-gray-700">Bemerkungsfeld</label>
+                                <textarea id="bemerkung" name="bemerkung" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- 5. Bild und Links -->
+                        <div class="col-span-3">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Bilder & Benefits (URLs)</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="bildUrl" class="block text-sm font-medium text-gray-700">Bild URL (Gerät)</label>
+                                    <input type="url" id="bildUrl" name="bildUrl" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                <div>
+                                    <label for="hwBenefit24" class="block text-sm font-medium text-gray-700">HW Benefit 24 Monate (Link)</label>
+                                    <input type="url" id="hwBenefit24" name="hwBenefit24" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                <div>
+                                    <label for="hwBenefit36" class="block text-sm font-medium text-gray-700">HW Benefit 36 Monate (Link)</label>
+                                    <input type="url" id="hwBenefit36" name="hwBenefit36" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                    
+                    <!-- Speichern Button -->
+                    <div class="mt-8">
+                        <button id="submit-btn" type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-700 hover:bg-blue-800 focus:outline-none transition duration-150">
+                            Aktion Speichern
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2 mt-10">Verwaltung bestehender Geräte-Aktionen</h2>
+            
+            <!-- Filter und Suchfeld -->
+            <div id="admin-search-container" class="mb-4">
+                <input type="text" id="admin-search" placeholder="Suche nach Gerät oder Anbieter..." class="w-full p-2 border rounded shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" oninput="filterAdminPromotions()">
+            </div>
+            
+            <!-- Liste der Aktionen -->
+            <div id="admin-promotion-list" class="space-y-4">
+                <div class="text-center text-gray-500 p-4">Lade Aktionen...</div>
+            </div>
+
+            <!-- PDF Upload Section -->
+            <div id="pdf-upload-section" class="mt-12 pt-6 border-t-2 border-gray-300">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">PDF Aktionsübersicht verwalten</h3>
+                <div class="bg-white p-6 rounded-xl shadow-lg flex items-center justify-between">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Aktuelle o2 Übersicht hochladen (PDF)</label>
+                        <input type="file" id="pdf-upload-input" accept="application/pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="handlePdfUpload(event)">
+                        <p id="pdf-status-label" class="text-xs text-gray-500 mt-2">Kein PDF ausgewählt</p>
+                    </div>
+                    <button onclick="deletePdf()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600">PDF Löschen</button>
+                </div>
+                <!-- Admin Vorschau -->
+                <div id="admin-pdf-preview" class="mt-6"></div>
+            </div>
+            
+            <!-- DATEN BACKUP SECTION (NEU) -->
+            <div id="data-backup-section" class="mt-12 pt-6 border-t-2 border-gray-300">
+                <h3 class="text-xl font-bold text-yellow-600 mb-4">💾 Daten-Backup & Wiederherstellung</h3>
+                <div class="bg-white p-6 rounded-xl shadow-lg space-y-4">
+                    <!-- Export -->
+                    <div class="flex justify-between items-center">
+                        <p class="text-sm text-gray-700">Sichern Sie alle eingegebenen Aktionen als JSON-Datei.</p>
+                        <button onclick="exportData()" class="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-yellow-600 transition">
+                            Daten exportieren (JSON)
+                        </button>
+                    </div>
+                    
+                    <!-- Import -->
+                    <div class="border-t pt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
+                        <label class="block text-sm font-medium text-gray-700">Daten wiederherstellen (Import)</label>
+                        <input type="file" id="import-input" accept="application/json" class="block w-full sm:w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" onchange="importData(event)">
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- INCENTIVES VERWALTUNG (Jetzt unten) -->
+            <div class="space-y-6 pt-10 border-t-2 border-gray-300 mt-12">
+                <h3 class="text-xl font-bold text-purple-700">Incentive Verwaltung</h3>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <form id="incentive-form" onsubmit="saveIncentive(event)" data-editing-id="">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Titel (NEU) -->
+                            <div class="md:col-span-2">
+                                <label for="incentiveTitel" class="block text-sm font-medium text-gray-700">Titel / Bezeichnung</label>
+                                <input type="text" id="incentiveTitel" name="incentiveTitel" placeholder="z.B. Xiaomi Watch Aktion" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required>
+                            </div>
+
+                            <!-- Start / Ende -->
+                            <div>
+                                <label for="incentiveStart" class="block text-sm font-medium text-gray-700">Incentive Start</label>
+                                <input type="date" id="incentiveStart" name="incentiveStart" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            <div>
+                                <label for="incentiveEnd" class="block text-sm font-medium text-gray-700">Incentive Ende</label>
+                                <input type="date" id="incentiveEnd" name="incentiveEnd" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            
+                            <!-- Bild Link (Prio entfernt) -->
+                            <div class="md:col-span-2">
+                                <label for="incentiveBildUrl" class="block text-sm font-medium text-gray-700">Bild URL</label>
+                                <input type="url" id="incentiveBildUrl" name="incentiveBildUrl" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            
+                            <!-- Bemerkungsfeld -->
+                            <div class="md:col-span-2">
+                                <label for="incentiveBemerkung" class="block text-sm font-medium text-gray-700">Bemerkung</label>
+                                <textarea id="incentiveBemerkung" name="incentiveBemerkung" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required></textarea>
+                            </div>
+
+                        </div>
+                        <div class="mt-6">
+                            <button id="incentive-submit-btn" type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-purple-700 hover:bg-purple-800 focus:outline-none transition duration-150">
+                                Incentive Speichern
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <h4 class="text-lg font-bold text-gray-800">Bestehende Incentives</h4>
+                <div id="admin-incentive-list" class="space-y-4">
+                    <div class="text-center text-gray-500 p-4">Lade Incentives...</div>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- 2. BENUTZER-ANSICHT (Kundenansicht) -->
+        <section id="user-view" class="hidden">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6">
+                <h2 class="text-3xl font-extrabold text-gray-900">Aktionen und Incentives</h2>
+                <!-- NEU: Suchfeld -->
+                <div id="user-search-container" class="mt-4 md:mt-0 w-full md:w-1/3">
+                     <input type="text" id="user-search" placeholder="🔍 Suche (Gerät, Tarif, Incentive)..." 
+                            class="w-full p-3 border border-gray-300 rounded-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            oninput="handleUserSearch()">
+                </div>
+            </div>
+            
+            <!-- PUSH PROVISION DISPLAY (NEU GANZ OBEN, GRID LAYOUT) -->
+             <div class="mb-8 hidden">
+                <h3 class="text-2xl font-bold text-green-700 mb-4 border-b pb-2">💰 Push Provisionen</h3>
+                <div id="user-push-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Wird per JS gefüllt -->
+                </div>
+            </div>
+
+            <!-- Incentive-Übersicht (Prio entfernt) -->
+            <div class="mb-12">
+                <h3 class="text-2xl font-bold text-purple-700 mb-4 border-b pb-2">⭐ Top Incentives</h3>
+                <div id="user-incentive-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <p class="text-center text-gray-500 p-4 col-span-full">Lade Incentives...</p>
+                </div>
+            </div>
+            
+            <!-- Überschrift Geräte-Aktionen (Beginnt auf Seite 2) -->
+            <!-- WICHTIG: Die ID "device-actions-header" sorgt für den Seitenumbruch im Druck -->
+            <h3 id="device-actions-header" class="text-2xl font-bold text-blue-700 mb-6 border-b pb-2">Geräte-Aktionen</h3>
+            
+            <!-- Inhaltsangabe Promotions (Beginnt auf Seite 2) -->
+            <div id="toc-container">
+                <div class="text-center text-gray-500 p-4">Lade Inhaltsangabe...</div>
+            </div>
+
+            <!-- Gruppierter Inhalt (Promotions) (Beginnt auf Seite 3) -->
+            <div id="user-view-content">
+                <div class="text-center text-gray-500 p-4">Lade Aktionen...</div>
+            </div>
+
+            <!-- PDF Container User View -->
+            <div id="user-pdf-container" class="mt-16">
+                <!-- PDF wird hier gerendert -->
+            </div>
+        </section>
+
+    </div>
+</body>
+</html>
