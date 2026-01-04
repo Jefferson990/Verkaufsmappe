@@ -314,132 +314,6 @@
 
         // --- DATEN LADE/SPEICHER LOGIK ---
 
-        // --- CLOUD (FIREBASE) OPTIONAL ---
-        const FIREBASE_CONFIG_STORAGE_KEY = "aktionsmappe_firebase_config_json";
-        const CLOUD_APP_ID = "vertrieb-mappe-prod"; // frei wählbar (Namespace in Firestore)
-        let cloud = { enabled: false, ready: false, app: null, db: null, auth: null, user: null };
-
-        function setCloudStatus(text, ok=false) {
-            const el = document.getElementById("cloud-status");
-            if (!el) return;
-            el.textContent = text;
-            el.className = ok
-                ? "text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-800"
-                : "text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-700";
-        }
-
-        async function loadFirebaseConfigAuto() {
-            // 1) Aus localStorage
-            const raw = localStorage.getItem(FIREBASE_CONFIG_STORAGE_KEY);
-            if (raw) {
-                try { return JSON.parse(raw); } catch {}
-            }
-            // 2) Neben der HTML als Datei: firebase-config.json (GitHub Pages)
-            try {
-                const res = await fetch("./firebase-config.json", { cache: "no-store" });
-                if (res.ok) {
-                    const cfg = await res.json();
-                    if (cfg && cfg.projectId && cfg.apiKey) {
-                        localStorage.setItem(FIREBASE_CONFIG_STORAGE_KEY, JSON.stringify(cfg));
-                        return cfg;
-                    }
-                }
-            } catch {}
-            return null;
-        }
-
-        async function importFirebaseConfig(ev) {
-            const file = ev?.target?.files?.[0];
-            if (!file) return;
-            try {
-                const txt = await file.text();
-                const cfg = JSON.parse(txt);
-                if (!cfg || !cfg.projectId || !cfg.apiKey) {
-                    showMessage("Das ist keine Firebase Web-App Config (apiKey/projectId fehlen).", true);
-                    return;
-                }
-                localStorage.setItem(FIREBASE_CONFIG_STORAGE_KEY, JSON.stringify(cfg));
-                showMessage("Firebase Config gespeichert. Jetzt „Cloud aktivieren“ klicken.", false);
-            } catch (e) {
-                console.error(e);
-                showMessage("Konnte Config nicht lesen (ungültiges JSON).", true);
-            } finally {
-                ev.target.value = "";
-            }
-        }
-
-        async function cloudConnect() {
-            try {
-                setCloudStatus("Cloud: verbindet…");
-                const cfg = await loadFirebaseConfigAuto();
-                if (!cfg) {
-                    showMessage("Keine Firebase Config gefunden. Bitte JSON auswählen oder firebase-config.json neben die HTML legen.", true);
-                    setCloudStatus("Cloud: aus");
-                    return;
-                }
-
-                // Dynamische Imports (funktioniert auf GitHub Pages)
-                const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-                const { getAuth, signInAnonymously, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
-                const { getFirestore, doc, getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-
-                cloud.app = initializeApp(cfg);
-                cloud.db = getFirestore(cloud.app);
-                cloud.auth = getAuth(cloud.app);
-
-                await new Promise((resolve, reject) => {
-                    onAuthStateChanged(cloud.auth, async (user) => {
-                        try {
-                            if (user) { cloud.user = user; resolve(); }
-                            else { await signInAnonymously(cloud.auth); }
-                        } catch (e) { reject(e); }
-                    });
-                });
-
-                cloud.enabled = true;
-                cloud.ready = true;
-                setCloudStatus("Cloud: an", true);
-                showMessage("Cloud aktiv. Daten werden jetzt zusätzlich online gespeichert.", false);
-
-                // Cloud -> Lokal ziehen (wenn vorhanden)
-                const stateRef = doc(cloud.db, `artifacts/${CLOUD_APP_ID}/public/data/state/main`);
-                const snap = await getDoc(stateRef);
-                if (snap.exists()) {
-                    const s = snap.data() || {};
-                    if (Array.isArray(s.promotions)) promotions = s.promotions;
-                    if (Array.isArray(s.incentives)) incentives = s.incentives;
-                    if (Array.isArray(s.pushProvisions)) pushProvisions = s.pushProvisions;
-                    if (Array.isArray(s.recentChanges)) recentChanges = s.recentChanges;
-                    if (s.pdfData) pdfData = s.pdfData;
-
-                    // Lokal sichern + UI refresh
-                    saveData();
-                    refreshUI();
-                    showMessage("Cloud-Daten geladen.", false);
-                } else {
-                    // Erstes Speichern initialisiert Cloud
-                    await setDoc(stateRef, {
-                        promotions, incentives, pushProvisions, recentChanges, pdfData,
-                        updatedAt: new Date().toISOString()
-                    }, { merge: true });
-                }
-
-            } catch (e) {
-                console.error(e);
-                cloud.enabled = false; cloud.ready = false;
-                setCloudStatus("Cloud: Fehler");
-                showMessage("Cloud-Verbindung fehlgeschlagen. Prüfe Firebase Config + Firestore/Auth Einstellungen.", true);
-            }
-        }
-
-        function cloudDisconnect() {
-            cloud.enabled = false;
-            cloud.ready = false;
-            setCloudStatus("Cloud: aus");
-            showMessage("Cloud getrennt. Es wird nur lokal gespeichert.", false);
-        }
-
-
         async function loadData() {
             try {
                 const pData = localStorage.getItem(STORAGE_KEY_PROMOTIONS);
@@ -509,24 +383,6 @@
                 localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(incentives));
                 localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(pushProvisions));
                 // recentChanges wird separat gespeichert in addRecentChange
-
-                // Optional: Cloud Sync (Firebase)
-                if (cloud && cloud.enabled && cloud.ready && cloud.db) {
-                    (async () => {
-                        try {
-                            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                            const stateRef = doc(cloud.db, `artifacts/${CLOUD_APP_ID}/public/data/state/main`);
-                            await setDoc(stateRef, {
-                                promotions, incentives, pushProvisions, recentChanges, pdfData,
-                                updatedAt: new Date().toISOString()
-                            }, { merge: true });
-                        } catch (e) {
-                            console.warn("Cloud save fehlgeschlagen:", e);
-                            // keine Fehlermeldung spammen – lokal ist ja gespeichert
-                        }
-                    })();
-                }
-
                 refreshUI();
             } catch (e) {
                 console.error("Fehler beim Speichern", e);
@@ -875,8 +731,6 @@
                     
                     // Daten neu laden und UI aktualisieren
                     loadData();
-            setCloudStatus('Cloud: prüfe…');
-            (async()=>{ const cfg = await loadFirebaseConfigAuto(); if(cfg){ await cloudConnect(); } else { setCloudStatus('Cloud: aus'); } })();
                     showMessage(`Daten von Backup-Datei erfolgreich wiederhergestellt!`);
                 } catch (err) {
                     console.error("Import Fehler:", err);
@@ -1540,6 +1394,18 @@
         // --- INIT ---
         document.addEventListener('DOMContentLoaded', () => {
             loadData();
+
+            // Cloud automatisch aktivieren, wenn firebase-config.json vorhanden ist
+            setCloudStatus('Cloud: prüfe…');
+            (async () => {
+                const cfg = await loadFirebaseConfigAuto();
+                if (cfg) {
+                    await cloudConnect();  // zieht Cloud-Daten + speichert künftig online
+                } else {
+                    setCloudStatus('Cloud: aus');
+                }
+            })();
+
             trackAndDisplayVisits();
             switchView(); 
             toggleFreeText(false); 
@@ -1931,36 +1797,6 @@
             <div id="data-backup-section" class="mt-12 pt-6 border-t-2 border-gray-300">
                 <h3 class="text-xl font-bold text-yellow-600 mb-4">💾 Daten-Backup & Wiederherstellung</h3>
                 <div class="bg-white p-6 rounded-xl shadow-lg space-y-4">
-
-                    <!-- Cloud Sync (Firebase) -->
-                    <div class="border-t pt-4 flex flex-col gap-3">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            <div>
-                                <div class="text-sm font-semibold text-gray-800">☁️ Cloud-Sync (Firebase) – optional</div>
-                                <div class="text-xs text-gray-500">Für geräteübergreifendes Speichern (GitHub Pages kompatibel). Ohne Config bleibt alles lokal.</div>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span id="cloud-status" class="text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-700">Cloud: aus</span>
-                                <button onclick="cloudConnect()" class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Cloud aktivieren</button>
-                                <button onclick="cloudDisconnect()" class="bg-gray-200 text-gray-800 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-gray-300 transition">Trennen</button>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <div class="text-xs font-semibold text-blue-900 mb-2">Firebase Config (JSON)</div>
-                                <input type="file" id="firebase-config-input" accept=".json,application/json" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white file:text-blue-700 hover:file:bg-blue-100" onchange="importFirebaseConfig(event)">
-                                <div class="text-[11px] text-blue-900/70 mt-2">Tipp: Lege eine Datei <span class="font-mono">firebase-config.json</span> neben die HTML auf GitHub Pages, dann wird sie automatisch erkannt.</div>
-                            </div>
-                            <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                <div class="text-xs font-semibold text-gray-800 mb-1">Hinweis</div>
-                                <div class="text-[11px] text-gray-600 leading-relaxed">
-                                    Deine hochgeladene Datei <span class="font-mono">aktionsmappe_backup...</span> ist ein <b>Daten-Backup</b> (Promotions/Incentives) – das importierst du weiter unten unter „Daten wiederherstellen“.
-                                    Für Cloud brauchst du die <b>Firebase Web-App Config</b> (apiKey, projectId, …) aus der Firebase Console.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Export -->
                     <div class="flex justify-between items-center">
                         <p class="text-sm text-gray-700">Sichern Sie alle eingegebenen Aktionen als JSON-Datei.</p>
