@@ -313,6 +313,137 @@
         };
 
         // --- DATEN LADE/SPEICHER LOGIK ---
+        // --- CLOUD (FIREBASE) ---
+        // Diese Config ist DEINE Firebase Web-App Config (damit klappt Cloud auch im Inkognito-Modus).
+        const INLINE_FIREBASE_CONFIG = {
+  "apiKey": "AIzaSyCjYCn-X694K1xoUULAin_zDta1r-dSh7Y",
+  "authDomain": "verkaufsmappe-7d917.firebaseapp.com",
+  "projectId": "verkaufsmappe-7d917",
+  "storageBucket": "verkaufsmappe-7d917.firebasestorage.app",
+  "messagingSenderId": "916375365270",
+  "appId": "1:916375365270:web:5b6bfbc37a4d0be1a004b7"
+};
+
+        const CLOUD_APP_ID = "vertrieb-mappe-prod"; // Namespace in Firestore (kann so bleiben)
+        let cloud = { enabled: false, ready: false, app: null, db: null, auth: null, user: null };
+
+        function setCloudStatus(text, ok=false) {
+            const el = document.getElementById("cloud-status");
+            if (!el) return;
+            el.textContent = text;
+            el.className = ok
+                ? "text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-800"
+                : "text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-700";
+        }
+
+        async function loadFirebaseConfigAuto() {
+            // 1) Inline (immer verfügbar)
+            if (INLINE_FIREBASE_CONFIG && INLINE_FIREBASE_CONFIG.projectId && INLINE_FIREBASE_CONFIG.apiKey) {
+                return INLINE_FIREBASE_CONFIG;
+            }
+            // 2) Neben der HTML als Datei: firebase-config.json (GitHub Pages)
+            try {
+                const res = await fetch("./firebase-config.json", { cache: "no-store" });
+                if (res.ok) {
+                    const cfg = await res.json();
+                    if (cfg && cfg.projectId && cfg.apiKey) return cfg;
+                }
+            } catch {}
+            return null;
+        }
+
+        async function cloudConnect() {
+            try {
+                setCloudStatus("Cloud: verbindet…");
+                const cfg = await loadFirebaseConfigAuto();
+                if (!cfg) {
+                    setCloudStatus("Cloud: aus");
+                    showMessage("Keine Firebase Config gefunden.", true);
+                    return;
+                }
+
+                // Dynamische Imports (GitHub Pages kompatibel)
+                const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                const { getAuth, signInAnonymously, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                const { getFirestore, doc, getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+
+                cloud.app = initializeApp(cfg);
+                cloud.db = getFirestore(cloud.app);
+                cloud.auth = getAuth(cloud.app);
+
+                await new Promise((resolve, reject) => {
+                    onAuthStateChanged(cloud.auth, async (user) => {
+                        try {
+                            if (user) { cloud.user = user; resolve(); }
+                            else { await signInAnonymously(cloud.auth); }
+                        } catch (e) { reject(e); }
+                    });
+                });
+
+                cloud.enabled = true;
+                cloud.ready = true;
+                setCloudStatus("Cloud: an", true);
+
+                // Cloud -> Lokal ziehen (wenn vorhanden)
+                const stateRef = doc(cloud.db, `artifacts/${CLOUD_APP_ID}/public/data/state/main`);
+                const snap = await getDoc(stateRef);
+                if (snap.exists()) {
+                    const s = snap.data() || {};
+                    if (Array.isArray(s.promotions)) promotions = s.promotions;
+                    if (Array.isArray(s.incentives)) incentives = s.incentives;
+                    if (Array.isArray(s.pushProvisions)) pushProvisions = s.pushProvisions;
+                    if (Array.isArray(s.recentChanges)) recentChanges = s.recentChanges;
+                    if (s.pdfData) pdfData = s.pdfData;
+
+                    // Lokal sichern + UI refresh
+                    saveData();
+                    refreshUI();
+                } else {
+                    // Erstes Speichern initialisiert Cloud
+                    await setDoc(stateRef, {
+                        promotions, incentives, pushProvisions, recentChanges, pdfData,
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                }
+            } catch (e) {
+                console.error(e);
+                cloud.enabled = false; cloud.ready = false;
+                setCloudStatus("Cloud: Fehler");
+                showMessage("Cloud-Verbindung fehlgeschlagen. Prüfe: Firestore aktiv + Auth (Anonymous) aktiv + Regeln.", true);
+            }
+        }
+
+        async function cloudSaveNow() {
+            if (!cloud || !cloud.enabled || !cloud.ready || !cloud.db) {
+                await cloudConnect();
+            }
+            if (!cloud || !cloud.enabled || !cloud.ready || !cloud.db) {
+                return;
+            }
+            try {
+                const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const stateRef = doc(cloud.db, `artifacts/${CLOUD_APP_ID}/public/data/state/main`);
+                await setDoc(stateRef, {
+                    promotions, incentives, pushProvisions, recentChanges, pdfData,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+                showMessage("✅ In Cloud gespeichert!", false);
+                setCloudStatus("Cloud: an", true);
+            } catch (e) {
+                console.error(e);
+                showMessage("❌ Cloud-Speichern fehlgeschlagen (Regeln/Firestore?).", true);
+                setCloudStatus("Cloud: Fehler");
+            }
+        }
+
+        function cloudDisconnect() {
+            cloud.enabled = false;
+            cloud.ready = false;
+            setCloudStatus("Cloud: aus");
+            showMessage("Cloud getrennt. Es wird nur lokal gespeichert.", false);
+        }
+
+
 
         async function loadData() {
             try {
@@ -377,18 +508,39 @@
             }
         }
 
-        function saveData() {
+        
+function saveData() {
             try {
                 localStorage.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(promotions));
                 localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(incentives));
                 localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(pushProvisions));
                 // recentChanges wird separat gespeichert in addRecentChange
+
+                // Optional: Cloud Sync (wenn Cloud aktiviert)
+                if (cloud && cloud.enabled && cloud.ready && cloud.db) {
+                    (async () => {
+                        try {
+                            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                            const stateRef = doc(cloud.db, `artifacts/${CLOUD_APP_ID}/public/data/state/main`);
+                            await setDoc(stateRef, {
+                                promotions, incentives, pushProvisions, recentChanges, pdfData,
+                                updatedAt: new Date().toISOString()
+                            }, { merge: true });
+                            setCloudStatus("Cloud: an", true);
+                        } catch (e) {
+                            console.warn("Cloud save fehlgeschlagen:", e);
+                            setCloudStatus("Cloud: Fehler");
+                        }
+                    })();
+                }
+
                 refreshUI();
             } catch (e) {
                 console.error("Fehler beim Speichern", e);
                 showMessage("Speicherfehler (Speicher voll?)", true);
             }
         }
+
 
         // --- UPDATE / EMAIL LOGIK ---
 
@@ -729,9 +881,15 @@
                     localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(parsedData.incentives));
                     localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(parsedData.pushProvisions));
                     
-                    // Daten neu laden und UI aktualisieren
-                    loadData();
-                    showMessage(`Daten von Backup-Datei erfolgreich wiederhergestellt!`);
+
+                    // Auch in den aktuellen Arbeitsspeicher übernehmen
+                    promotions = parsedData.promotions || [];
+                    incentives = parsedData.incentives || [];
+                    pushProvisions = parsedData.pushProvisions || [];
+
+                    // Lokal speichern (und falls Cloud aktiv ist: direkt mit in die Cloud)
+                    saveData();
+                    showMessage("✅ Daten importiert und gespeichert. (Tipp: Für Inkognito/andere Geräte: einmal auf „In Cloud speichern“ klicken.)");
                 } catch (err) {
                     console.error("Import Fehler:", err);
                     showMessage("Fehler beim Parsen der JSON-Datei. Ist sie beschädigt?", true);
@@ -1797,7 +1955,27 @@
             <div id="data-backup-section" class="mt-12 pt-6 border-t-2 border-gray-300">
                 <h3 class="text-xl font-bold text-yellow-600 mb-4">💾 Daten-Backup & Wiederherstellung</h3>
                 <div class="bg-white p-6 rounded-xl shadow-lg space-y-4">
-                    <!-- Export -->
+                    
+                    <!-- Cloud Sync (Firebase) -->
+                    <div class="border-b pb-4 mb-4 flex flex-col gap-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-800">☁️ Cloud-Speicherung (Firebase)</div>
+                                <div class="text-xs text-gray-500">Damit sind deine Daten auch im Inkognito-Modus und auf anderen Geräten da.</div>
+                            </div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span id="cloud-status" class="text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-700">Cloud: aus</span>
+                                <button type="button" onclick="cloudConnect()" class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Cloud verbinden</button>
+                                <button type="button" onclick="cloudSaveNow()" class="bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition">In Cloud speichern</button>
+                                <button type="button" onclick="cloudDisconnect()" class="bg-gray-200 text-gray-800 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-gray-300 transition">Trennen</button>
+                            </div>
+                        </div>
+                        <div class="text-[11px] text-gray-600 leading-relaxed">
+                            Wichtig: Beim Import aus deiner <span class="font-mono">aktionsmappe_backup…json</span> werden Daten erst lokal gespeichert.
+                            Klicke danach einmal <b>„In Cloud speichern“</b>, damit es wirklich online landet.
+                        </div>
+                    </div>
+<!-- Export -->
                     <div class="flex justify-between items-center">
                         <p class="text-sm text-gray-700">Sichern Sie alle eingegebenen Aktionen als JSON-Datei.</p>
                         <button onclick="exportData()" class="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-yellow-600 transition">
