@@ -308,6 +308,24 @@
         
         const predefinedProviders = ['o2', 'HeTec', 'GreenMnky', 'Freiertext'];
 
+        // --- ADMIN PIN ---
+        // Admin-Ansicht ist per PIN geschützt (nur für diese Session im Tab)
+        const ADMIN_PIN = "9876";
+        let adminUnlocked = false;
+
+        function requireAdminPin() {
+            if (adminUnlocked) return true;
+            const pin = prompt("Admin PIN eingeben:");
+            if (pin === null) return false;
+            if (String(pin).trim() === ADMIN_PIN) {
+                adminUnlocked = true;
+                return true;
+            }
+            alert("Falsche PIN.");
+            return false;
+        }
+
+
         const generateId = () => {
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
         };
@@ -1522,10 +1540,28 @@ function saveData() {
         }
 
         window.switchView = () => {
-            const isAdmin = document.getElementById('view-toggle').checked;
-            document.getElementById('admin-view').classList.toggle('hidden', !isAdmin);
-            document.getElementById('user-view').classList.toggle('hidden', isAdmin);
-            document.getElementById('view-name').textContent = isAdmin ? 'Admin-Ansicht' : 'Kunden-Ansicht';
+            const toggle = document.getElementById('view-toggle');
+            const wantAdmin = !!toggle?.checked;
+
+            // Wenn Admin angefordert: PIN prüfen
+            if (wantAdmin) {
+                const ok = requireAdminPin();
+                if (!ok) {
+                    // zurück auf Kundenansicht
+                    if (toggle) toggle.checked = false;
+                }
+            }
+
+            const isAdmin = !!document.getElementById('view-toggle')?.checked && adminUnlocked;
+
+            document.getElementById('admin-view')?.classList.toggle('hidden', !isAdmin);
+            document.getElementById('user-view')?.classList.toggle('hidden', isAdmin);
+            const viewName = document.getElementById('view-name');
+            if (viewName) viewName.textContent = isAdmin ? 'Admin-Ansicht' : 'Kunden-Ansicht';
+
+            // Update-Mail Button nur in Admin anzeigen
+            const mailBtn = document.getElementById('email-update-btn');
+            if (mailBtn) mailBtn.classList.toggle('hidden', !isAdmin);
         };
 
         window.toggleFreeText = (manualOverride) => {
@@ -1552,6 +1588,11 @@ function saveData() {
         // --- INIT ---
         document.addEventListener('DOMContentLoaded', () => {
             loadData();
+            // Start immer in Kundenansicht
+            const vt = document.getElementById('view-toggle');
+            if (vt) vt.checked = false;
+            const mb = document.getElementById('email-update-btn');
+            if (mb) mb.classList.add('hidden');
 
             // Cloud automatisch aktivieren, wenn firebase-config.json vorhanden ist
             setCloudStatus('Cloud: prüfe…');
@@ -1644,7 +1685,7 @@ function saveData() {
                 </button>
 
                 <!-- NEU: EMAIL UPDATE BUTTON -->
-                <button id="email-update-btn" onclick="sendUpdateEmail()" class="relative flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition shadow">
+                <button id="email-update-btn" onclick="sendUpdateEmail()" class="hidden relative flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition shadow">
                     <span>✉️ Update-Mail senden</span>
                     <!-- Badge für Anzahl der Änderungen -->
                     <span id="email-badge" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full hidden">0</span>
