@@ -287,6 +287,28 @@
     <!-- Script für Lokale Logik -->
     <script>
         // --- KONFIGURATION & STATE ---
+
+        // --- STORAGE WRAPPER (funktioniert auch, wenn localStorage blockiert ist) ---
+        const LS = (() => {
+            try {
+                const k = '__am_test__';
+                window.LS.setItem(k, '1');
+                window.LS.removeItem(k);
+                return window.localStorage;
+            } catch (e) {
+                console.warn('LocalStorage ist blockiert (Privatmodus/InPrivate/iFrame). Fallback: Speicher nur temporär.', e);
+                const mem = new Map();
+                return {
+                    getItem: (key) => mem.has(key) ? mem.get(key) : null,
+                    setItem: (key, val) => mem.set(key, String(val)),
+                    removeItem: (key) => mem.delete(key),
+                };
+            }
+        })();
+
+        // --- OPTIONAL: CLOUD SYNC (Firebase) ---
+        const STORAGE_KEY_CLOUD_CFG = 'am_cloud_cfg_json';
+        const STORAGE_KEY_CLOUD_ENABLED = 'am_cloud_enabled';
         const STORAGE_KEY_PROMOTIONS = 'am_promotions_data';
         const STORAGE_KEY_INCENTIVES = 'am_incentives_data';
         const STORAGE_KEY_PUSH = 'am_push_data';
@@ -312,15 +334,99 @@
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
         };
 
+        // --- CLOUD SYNC HELPERS (Firebase optional) ---
+        function getStoredCloudConfig() {
+            const raw = LS.getItem(STORAGE_KEY_CLOUD_CFG);
+            if (!raw) return null;
+            try { return JSON.parse(raw); } catch { return null; }
+        }
+
+        window.saveCloudConfig = () => {
+            const el = document.getElementById('cloud-config-json');
+            if (!el) return;
+            const raw = (el.value || '').trim();
+            if (!raw) { showMessage("Bitte Firebase Config JSON einfügen.", true); return; }
+            try {
+                JSON.parse(raw);
+                LS.setItem(STORAGE_KEY_CLOUD_CFG, raw);
+                showMessage("Firebase Config gespeichert.");
+                updateCloudStatus();
+            } catch (e) {
+                showMessage("Config ist kein gültiges JSON.", true);
+            }
+        };
+
+        window.toggleCloud = (enable) => {
+            LS.setItem(STORAGE_KEY_CLOUD_ENABLED, enable ? '1' : '0');
+            updateCloudStatus();
+            if (enable) {
+                showMessage("Cloud aktiviert. Lade/Sync startet…");
+                // neu laden, damit Cloud Daten gezogen werden
+                loadData();
+            } else {
+                showMessage("Cloud deaktiviert. Nur lokal.");
+            }
+        };
+
+        function updateCloudStatus() {
+            const s = document.getElementById('cloud-status');
+            const enabled = LS.getItem(STORAGE_KEY_CLOUD_ENABLED) === '1';
+            const hasCfg = !!getStoredCloudConfig();
+            if (!s) return;
+            if (!enabled) {
+                s.textContent = "Status: Lokal";
+                s.className = "mt-3 text-xs font-bold text-gray-500";
+            } else if (enabled && !hasCfg) {
+                s.textContent = "Status: Cloud aktiviert, aber keine Firebase Config gespeichert!";
+                s.className = "mt-3 text-xs font-bold text-red-600";
+            } else if (enabled && hasCfg && !(window.AM_CLOUD && window.AM_CLOUD.isReady)) {
+                s.textContent = "Status: Cloud wird initialisiert…";
+                s.className = "mt-3 text-xs font-bold text-indigo-600";
+            } else {
+                s.textContent = "Status: Cloud aktiv";
+                s.className = "mt-3 text-xs font-bold text-green-600";
+            }
+        }
+
+
         // --- DATEN LADE/SPEICHER LOGIK ---
 
         async function loadData() {
             try {
-                const pData = localStorage.getItem(STORAGE_KEY_PROMOTIONS);
-                const iData = localStorage.getItem(STORAGE_KEY_INCENTIVES);
-                const pushData = localStorage.getItem(STORAGE_KEY_PUSH);
-                let pdfLocal = localStorage.getItem(STORAGE_KEY_PDF);
-                const changesData = localStorage.getItem(STORAGE_KEY_CHANGES); // Änderungen laden
+                
+                // 0) CLOUD LOAD (wenn aktiviert + konfiguriert)
+                const cloudEnabled = LS.getItem(STORAGE_KEY_CLOUD_ENABLED) === '1';
+                if (cloudEnabled && window.AM_CLOUD && typeof window.AM_CLOUD.getAll === 'function') {
+                    try {
+                        const cloud = await window.AM_CLOUD.getAll();
+                        if (cloud) {
+                            promotions = Array.isArray(cloud.promotions) ? cloud.promotions : [];
+                            incentives = Array.isArray(cloud.incentives) ? cloud.incentives : [];
+                            pushProvisions = Array.isArray(cloud.pushProvisions) ? cloud.pushProvisions : [];
+                            recentChanges = Array.isArray(cloud.recentChanges) ? cloud.recentChanges : [];
+                            pdfData = cloud.pdfData || null;
+
+                            // Cache auch lokal (für Offline-Nutzung)
+                            LS.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(promotions));
+                            LS.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(incentives));
+                            LS.setItem(STORAGE_KEY_PUSH, JSON.stringify(pushProvisions));
+                            LS.setItem(STORAGE_KEY_CHANGES, JSON.stringify(recentChanges));
+                            if (pdfData) LS.setItem(STORAGE_KEY_PDF, JSON.stringify(pdfData));
+
+                            refreshUI();
+                            showMessage("Cloud Sync: Daten geladen.");
+                            return; // wichtig: nicht nochmal überschreiben
+                        }
+                    } catch (e) {
+                        console.warn("Cloud Sync: Laden fehlgeschlagen, fallback auf Lokal.", e);
+                    }
+                }
+
+const pData = LS.getItem(STORAGE_KEY_PROMOTIONS);
+                const iData = LS.getItem(STORAGE_KEY_INCENTIVES);
+                const pushData = LS.getItem(STORAGE_KEY_PUSH);
+                let pdfLocal = LS.getItem(STORAGE_KEY_PDF);
+                const changesData = LS.getItem(STORAGE_KEY_CHANGES); // Änderungen laden
 
                 // ** NEUE LOGIK: Wenn LocalStorage leer ist, versuche hochgeladene Datei zu laden **
                 if (!pdfLocal) {
@@ -338,7 +444,7 @@
                                 data: base64,
                                 date: new Date().toLocaleDateString()
                             };
-                            localStorage.setItem(STORAGE_KEY_PDF, JSON.stringify(newPdfData));
+                            LS.setItem(STORAGE_KEY_PDF, JSON.stringify(newPdfData));
                             pdfLocal = JSON.stringify(newPdfData);
                             showMessage("Hochgeladene PDF-Datei automatisch geladen.");
                         }
@@ -379,10 +485,23 @@
 
         function saveData() {
             try {
-                localStorage.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(promotions));
-                localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(incentives));
-                localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(pushProvisions));
+                LS.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(promotions));
+                LS.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(incentives));
+                LS.setItem(STORAGE_KEY_PUSH, JSON.stringify(pushProvisions));
                 // recentChanges wird separat gespeichert in addRecentChange
+
+                // 0) CLOUD SAVE (fire-and-forget)
+                const cloudEnabled = LS.getItem(STORAGE_KEY_CLOUD_ENABLED) === '1';
+                if (cloudEnabled && window.AM_CLOUD && typeof window.AM_CLOUD.setAll === 'function') {
+                    (async () => {
+                        try {
+                            await window.AM_CLOUD.setAll({ promotions, incentives, pushProvisions, recentChanges, pdfData });
+                        } catch (e) {
+                            console.warn('Cloud Sync: Speichern fehlgeschlagen (bleibt lokal gespeichert).', e);
+                        }
+                    })();
+                }
+
                 refreshUI();
             } catch (e) {
                 console.error("Fehler beim Speichern", e);
@@ -394,7 +513,7 @@
 
         function addRecentChange(text) {
             recentChanges.push(text);
-            localStorage.setItem(STORAGE_KEY_CHANGES, JSON.stringify(recentChanges));
+            LS.setItem(STORAGE_KEY_CHANGES, JSON.stringify(recentChanges));
             refreshUI(); // Aktualisiert Badge
         }
 
@@ -418,7 +537,7 @@
             setTimeout(() => {
                 if(confirm("Hat sich das E-Mail Fenster geöffnet? Sollen die Änderungen nun aus der Liste 'ungesendet' entfernt werden?")) {
                     recentChanges = [];
-                    localStorage.removeItem(STORAGE_KEY_CHANGES);
+                    LS.removeItem(STORAGE_KEY_CHANGES);
                     refreshUI();
                     showMessage("Änderungsliste zurückgesetzt.");
                 }
@@ -480,7 +599,7 @@
                 };
 
                 try {
-                    localStorage.setItem(STORAGE_KEY_PDF, JSON.stringify(newPdfData));
+                    LS.setItem(STORAGE_KEY_PDF, JSON.stringify(newPdfData));
                     pdfData = newPdfData;
                     renderPdfView();
                     showMessage("PDF erfolgreich gespeichert!");
@@ -494,7 +613,7 @@
 
         window.deletePdf = () => {
             if(!confirm("Möchten Sie das gespeicherte PDF wirklich löschen?")) return;
-            localStorage.removeItem(STORAGE_KEY_PDF);
+            LS.removeItem(STORAGE_KEY_PDF);
             pdfData = null;
             renderPdfView();
             document.getElementById('pdf-upload-input').value = '';
@@ -594,7 +713,7 @@
             const currentMonthYear = `${today.getFullYear()}-${today.getMonth() + 1}`;
             
             let visitsData = { count: 0, monthYear: currentMonthYear };
-            const storedVisits = localStorage.getItem(STORAGE_KEY_VISITS);
+            const storedVisits = LS.getItem(STORAGE_KEY_VISITS);
 
             if (storedVisits) {
                 try {
@@ -609,7 +728,7 @@
             }
 
             visitsData.count++;
-            localStorage.setItem(STORAGE_KEY_VISITS, JSON.stringify(visitsData));
+            LS.setItem(STORAGE_KEY_VISITS, JSON.stringify(visitsData));
             
             document.getElementById('visit-counter-display').textContent = `Besuche diesen Monat: ${visitsData.count}`;
         };
@@ -725,9 +844,9 @@
                     }
                     
                     // Daten in LocalStorage speichern
-                    localStorage.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(parsedData.promotions));
-                    localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(parsedData.incentives));
-                    localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(parsedData.pushProvisions));
+                    LS.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(parsedData.promotions));
+                    LS.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(parsedData.incentives));
+                    LS.setItem(STORAGE_KEY_PUSH, JSON.stringify(parsedData.pushProvisions));
                     
                     // Daten neu laden und UI aktualisieren
                     loadData();
@@ -973,6 +1092,15 @@
                 form.anbieterSelect.value = provider;
                 form.anbieterFreiertext.value = '';
                 toggleFreeText(false);
+
+            // --- Cloud UI init ---
+            const cfg = LS.getItem(STORAGE_KEY_CLOUD_CFG);
+            const cfgEl = document.getElementById('cloud-config-json');
+            if (cfgEl && cfg) cfgEl.value = cfg;
+            updateCloudStatus();
+            window.addEventListener('am_cloud_ready', updateCloudStatus);
+            window.addEventListener('am_cloud_error', updateCloudStatus);
+
             } else {
                 form.anbieterSelect.value = 'Freiertext';
                 form.anbieterFreiertext.value = provider;
@@ -1501,6 +1629,29 @@
             <div id="visit-counter-display" class="text-lg font-bold text-gray-600 p-3 bg-yellow-50 rounded-lg shadow-sm">
                 Besuche diesen Monat: Lade...
             </div>
+            <!-- CLOUD SYNC (optional, für Geräte-übergreifendes Speichern) -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
+                <h3 class="text-xl font-bold text-indigo-700">☁️ Cloud Sync (Firebase) – optional</h3>
+                <p class="text-sm text-gray-600 mt-2">
+                    Lokal speichern funktioniert immer. Cloud Sync brauchst du nur, wenn mehrere Mitarbeiter / Geräte dieselben Daten sehen sollen.
+                </p>
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Firebase Config (JSON)</label>
+                        <textarea id="cloud-config-json" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-xs font-mono"
+                            placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'></textarea>
+                        <p class="text-xs text-gray-400 mt-1">Die Config findest du in Firebase Console → Project settings → Your apps → SDK setup.</p>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <button type="button" onclick="saveCloudConfig()" class="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 transition">Config speichern</button>
+                        <button type="button" onclick="toggleCloud(true)" class="w-full bg-green-600 text-white font-bold py-2 rounded-lg hover:bg-green-700 transition">Cloud aktivieren</button>
+                        <button type="button" onclick="toggleCloud(false)" class="w-full bg-gray-200 text-gray-800 font-bold py-2 rounded-lg hover:bg-gray-300 transition">Nur lokal</button>
+                    </div>
+                </div>
+                <div id="cloud-status" class="mt-3 text-xs font-bold text-gray-500">Status: Lokal</div>
+            </div>
+
+
             
             <!-- PUSH PROVISION VERWALTUNG (NEU GANZ OBEN) -->
             <div class="space-y-6 pt-2 pb-6 border-b-2 border-green-300 bg-green-50 rounded-lg p-4">
@@ -1903,5 +2054,69 @@
         </section>
 
     </div>
+
+    <!-- Firebase Cloud Sync (optional) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        function safeGetLocalStorage(key) {
+            try { return window.localStorage.getItem(key); } catch { return null; }
+        }
+
+        const rawCfg = safeGetLocalStorage('am_cloud_cfg_json');
+        const cfg = rawCfg ? (() => { try { return JSON.parse(rawCfg); } catch { return null; } })() : null;
+
+        // Nur starten, wenn Config plausibel ist
+        if (cfg && cfg.apiKey && cfg.projectId) {
+            try {
+                const app = initializeApp(cfg);
+                const db = getFirestore(app);
+                const auth = getAuth(app);
+
+                const docId = btoa(unescape(encodeURIComponent(location.pathname))).replace(/=+/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+                const ref = doc(db, "aktionsmappe", docId);
+
+                const ready = new Promise((resolve, reject) => {
+                    onAuthStateChanged(auth, async (user) => {
+                        try {
+                            if (!user) await signInAnonymously(auth);
+                            resolve(true);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                });
+
+                window.AM_CLOUD = {
+                    isReady: false,
+                    async getAll() {
+                        await ready;
+                        const snap = await getDoc(ref);
+                        return snap.exists() ? snap.data() : null;
+                    },
+                    async setAll(payload) {
+                        await ready;
+                        await setDoc(ref, { ...payload, updatedAt: Date.now() }, { merge: true });
+                    }
+                };
+
+                ready.then(() => {
+                    window.AM_CLOUD.isReady = true;
+                    window.dispatchEvent(new Event('am_cloud_ready'));
+                }).catch((e) => {
+                    console.warn('Cloud Sync init failed', e);
+                    window.dispatchEvent(new Event('am_cloud_error'));
+                });
+            } catch (e) {
+                console.warn('Cloud Sync init failed', e);
+                window.dispatchEvent(new Event('am_cloud_error'));
+            }
+        } else {
+            // keine Config -> kein Cloud
+        }
+    </script>
+
 </body>
 </html>
