@@ -512,8 +512,8 @@
             titleContainer.insertBefore(backBtn, titleContainer.firstChild);
 
             if (bundle) {
-                 // Render ONLY this bundle
-                 renderUserView([], [], [], [bundle]); // Helper to use existing render logic but only for this bundle
+                 // Render ONLY this bundle. PASS isSingleView = true
+                 renderUserView([], [], [], [bundle], true); 
                  bundleListEl.classList.remove('hidden');
                  bundleHeaderEl.classList.remove('hidden');
                  bundleHeaderEl.querySelector('h3').textContent = "Ihre Auswahl:";
@@ -1292,7 +1292,8 @@
             }).join('');
         }
 
-        function renderUserView(promotionsList, incentivesList, pushList, bundlesList) {
+        // Updated function signature to accept isSingleMode flag
+        function renderUserView(promotionsList, incentivesList, pushList, bundlesList, isSingleMode = false) {
             const tocContainerEl = document.getElementById('toc-container');
             const viewEl = document.getElementById('user-view-content'); 
             const incentiveListEl = document.getElementById('user-incentive-list');
@@ -1343,8 +1344,8 @@
             }
 
             // --- BUNDLES (NEU) ---
-            // If bundlesList is passed (even empty), filter it. If called from renderSingleBundleView, it passes only the specific bundle.
-            const activeBundles = bundlesList.length === 1 ? bundlesList : bundlesList.filter(b => !isExpired(b.end));
+            // Fix: Use isSingleMode flag instead of checking length === 1
+            const activeBundles = isSingleMode ? bundlesList : bundlesList.filter(b => !isExpired(b.end));
             
             if (activeBundles.length > 0) {
                 bundleListEl.innerHTML = activeBundles.map(b => {
@@ -1420,8 +1421,8 @@
             // --- Promotions ---
             const activePromotions = promotionsList.filter(p => !isExpired(p.aktionsende));
             
-            // If we are in "Single Bundle View" (bundlesList.length === 1 and passed explicitly), we skip promotion rendering or just return empty
-            if (bundlesList.length === 1 && bundlesList[0].id) {
+            // Fix: Check isSingleMode flag instead of length logic
+            if (isSingleMode) {
                  // Do not render promotions in single view mode
                  viewEl.innerHTML = '';
                  tocContainerEl.innerHTML = '';
