@@ -18,32 +18,6 @@
             color: #1e293b; 
         }
 
-
-        /* EMBED MODE (PencilSelling iFrame): show only Single Bundle, no scrolling */
-        html.embed-mode, body.embed-mode {
-            overflow: hidden !important;
-            height: 100vh !important;
-            background: #ffffff !important;
-            background-image: none !important;
-        }
-        body.embed-mode header {
-            display: none !important;
-        }
-        body.embed-mode .max-w-7xl {
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        body.embed-mode #user-view {
-            margin-top: 0 !important;
-        }
-        body.embed-mode #user-view > div:first-child {
-            display: none !important; /* hide "Aktionen und Incentives" header row */
-        }
-        body.embed-mode #single-view-back-btn {
-            display: none !important;
-        }
-
         /* Custom Styling for the switch */
         .toggle-switch input:checked + .slider {
             background-color: #2563eb;
@@ -520,14 +494,6 @@
                 // CHECK FOR BUNDLE ID IN URL (DEEP LINKING)
                 const urlParams = new URLSearchParams(window.location.search);
                 const bundleId = urlParams.get('bundleId');
-                const isEmbed = urlParams.get('embed') === '1';
-                if (isEmbed) {
-                    try {
-                        document.documentElement.classList.add('embed-mode');
-                        document.body.classList.add('embed-mode');
-                    } catch (e) {}
-                    window.__EMBED_MODE__ = true;
-                }
                 
                 if(bundleId) {
                     // Activate Single View Mode
@@ -615,7 +581,6 @@
 
         // --- SINGLE BUNDLE LINKING LOGIC (NEU) ---
         function renderSingleBundleView(bundleId) {
-            const __singleIsEmbed = (window.__EMBED_MODE__ === true) || (new URLSearchParams(window.location.search).get('embed') === '1');
             // Ensure User view is active, Admin hidden
             document.getElementById('admin-view').classList.add('hidden');
             document.getElementById('user-view').classList.remove('hidden');
@@ -639,9 +604,8 @@
             const bundleListEl = document.getElementById('user-bundle-list');
             const bundleHeaderEl = document.getElementById('bundle-section-header');
             
-            // Show Back Button (not in embed)
-            if (!__singleIsEmbed) {
-                const backBtn = document.createElement('button');
+            // Show Back Button
+            const backBtn = document.createElement('button');
             backBtn.id = 'single-view-back-btn';
             backBtn.textContent = '← Zurück zur Übersicht';
             backBtn.className = 'mb-6 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition font-semibold';
