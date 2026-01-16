@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aktionsmappe Verwaltung (Lokal)</title>
+    <title>Aktionsmappe Verwaltung (Cloud Sync)</title>
     <!-- Tailwind CSS laden -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Firebase (Cloud-Sync fuer alle Shops) -->
+    <!-- Wichtig: GitHub Pages ist statisch. "Speichern im Hosting" geht nur ueber eine Datenbank (Firestore). -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <!-- Konfiguriere Tailwind für die Inter-Schriftart -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
@@ -318,6 +323,77 @@
         
         const predefinedProviders = ['o2', 'HeTec', 'GreenMnky', 'Freiertext'];
 
+        // --- CLOUD SYNC (FIRESTORE) ---
+        // Ziel: Eine gemeinsame Datenbasis fuer ALLE Shops (wie frueher), damit der Inhalt
+        // auch im iFrame (Pencil Selling) auf GitHub Pages immer identisch geladen wird.
+        // Hinweis: GitHub Pages kann NICHT "ins Hosting speichern". Das geht nur ueber eine DB.
+        const CLOUD_SYNC_ENABLED = true;
+        const CLOUD_COLLECTION = 'aktionsmappe';
+        const CLOUD_DOC_ID = 'global';
+
+        // Firebase Config (aus deiner firebase-config.json)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCjYCn-X694K1xoUULAin_zDta1r-dSh7Y",
+            authDomain: "verkaufsmappe-7d917.firebaseapp.com",
+            projectId: "verkaufsmappe-7d917",
+            storageBucket: "verkaufsmappe-7d917.firebasestorage.app",
+            messagingSenderId: "916375365270",
+            appId: "1:916375365270:web:5b6bfbc37a4d0be1a004b7"
+        };
+
+        let __firebaseApp = null;
+        let __db = null;
+
+        function initCloudSync() {
+            if (!CLOUD_SYNC_ENABLED) return false;
+            try {
+                if (!window.firebase || !window.firebase.initializeApp) {
+                    console.warn('Firebase SDK nicht geladen. Cloud Sync deaktiviert.');
+                    return false;
+                }
+                __firebaseApp = window.firebase.apps?.length ? window.firebase.app() : window.firebase.initializeApp(firebaseConfig);
+                __db = window.firebase.firestore();
+                return true;
+            } catch (e) {
+                console.warn('Cloud Sync init fehlgeschlagen:', e);
+                return false;
+            }
+        }
+
+        async function loadDataFromCloud() {
+            if (!initCloudSync() || !__db) return null;
+            try {
+                const ref = __db.collection(CLOUD_COLLECTION).doc(CLOUD_DOC_ID);
+                const snap = await ref.get();
+                if (!snap.exists) return null;
+                const data = snap.data() || null;
+                return data;
+            } catch (e) {
+                console.warn('Cloud Load fehlgeschlagen:', e);
+                return null;
+            }
+        }
+
+        async function saveDataToCloud(payload) {
+            if (!initCloudSync() || !__db) return false;
+            try {
+                const ref = __db.collection(CLOUD_COLLECTION).doc(CLOUD_DOC_ID);
+                // Merge: falls du spaeter Felder erweiterst, bleibt es kompatibel
+                await ref.set({
+                    ...payload,
+                    __meta: {
+                        updatedAt: new Date().toISOString(),
+                        app: 'Verkaufsmappe',
+                        version: 'cloud-sync-v1'
+                    }
+                }, { merge: true });
+                return true;
+            } catch (e) {
+                console.warn('Cloud Save fehlgeschlagen:', e);
+                return false;
+            }
+        }
+
         // --- FIXED BUNDLE SLOTS (3 pro Canvas) ---
         // Regel: Bundle-Slots werden NICHT geloescht, nur aktiviert/deaktiviert.
         const BUNDLE_CANVAS_CATEGORIES = [
@@ -435,6 +511,33 @@
 
         async function loadData() {
             try {
+                // 1) Zuerst versuchen wir die gemeinsame Cloud-Datenbasis zu laden.
+                //    Wenn vorhanden: in State uebernehmen UND als Cache in localStorage spiegeln.
+                const cloud = await loadDataFromCloud();
+                if (cloud && typeof cloud === 'object') {
+                    try {
+                        if (Array.isArray(cloud.promotions)) {
+                            promotions = cloud.promotions;
+                            localStorage.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(promotions));
+                        }
+                        if (Array.isArray(cloud.incentives)) {
+                            incentives = cloud.incentives;
+                            localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(incentives));
+                        }
+                        if (Array.isArray(cloud.pushProvisions)) {
+                            pushProvisions = cloud.pushProvisions;
+                            localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(pushProvisions));
+                        }
+                        if (Array.isArray(cloud.bundles)) {
+                            bundles = cloud.bundles;
+                            localStorage.setItem(STORAGE_KEY_BUNDLES, JSON.stringify(bundles));
+                        }
+                        showMessage("✅ Cloud-Daten geladen (alle Shops)");
+                    } catch (e) {
+                        console.warn('Cloud->Local Cache fehlgeschlagen:', e);
+                    }
+                }
+
                 const pData = localStorage.getItem(STORAGE_KEY_PROMOTIONS);
                 const iData = localStorage.getItem(STORAGE_KEY_INCENTIVES);
                 const pushData = localStorage.getItem(STORAGE_KEY_PUSH);
@@ -466,13 +569,29 @@
                     }
                 }
                 
-                promotions = pData ? JSON.parse(pData) : [];
-                incentives = iData ? JSON.parse(iData) : [];
-                bundles = bundleData ? JSON.parse(bundleData) : [];
+                // 2) Wenn Cloud nicht geladen werden konnte, nehmen wir localStorage.
+                //    (Oder: Cloud hat keine Daten -> localStorage fallback)
+                promotions = (promotions && promotions.length) ? promotions : (pData ? JSON.parse(pData) : []);
+                incentives = (incentives && incentives.length) ? incentives : (iData ? JSON.parse(iData) : []);
+                bundles = (bundles && bundles.length) ? bundles : (bundleData ? JSON.parse(bundleData) : []);
                 ensureFixedBundleSlots();
                 recentChanges = changesData ? JSON.parse(changesData) : [];
                 
-                pushProvisions = pushData ? JSON.parse(pushData).map(p => {
+                pushProvisions = (pushProvisions && pushProvisions.length)
+                    ? pushProvisions.map(p => {
+                        // normalize
+                        if (!p.betrag && typeof p.titel === 'string' && p.titel.includes('€')) {
+                            const numericPart = parseFloat(p.titel.replace('€', '').trim());
+                            return {
+                                ...p,
+                                titel: 'Zusatz-Push',
+                                betrag: isNaN(numericPart) ? 0 : numericPart,
+                            };
+                        }
+                        p.betrag = p.betrag ? parseFloat(p.betrag) : 0;
+                        return p;
+                    })
+                    : (pushData ? JSON.parse(pushData).map(p => {
                     if (!p.betrag && typeof p.titel === 'string' && p.titel.includes('€')) {
                         const numericPart = parseFloat(p.titel.replace('€', '').trim());
                         return {
@@ -483,7 +602,7 @@
                     }
                     p.betrag = p.betrag ? parseFloat(p.betrag) : 0;
                     return p;
-                }) : [];
+                }) : []);
                 pdfData = pdfLocal ? JSON.parse(pdfLocal) : null;
                 
                 promotions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -514,6 +633,25 @@
                 localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(incentives));
                 localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(pushProvisions));
                 localStorage.setItem(STORAGE_KEY_BUNDLES, JSON.stringify(bundles));
+
+                // Cloud Sync: zentrale Speicherung fuer alle Shops
+                // (ohne PDF Base64, um Firestore-Dokumentgroesse nicht zu sprengen)
+                if (CLOUD_SYNC_ENABLED) {
+                    // nicht blockieren, aber Feedback geben
+                    (async () => {
+                        const ok = await saveDataToCloud({
+                            promotions,
+                            incentives,
+                            pushProvisions,
+                            bundles
+                        });
+                        if (ok) {
+                            showMessage("✅ In Cloud gespeichert (alle Shops)");
+                        } else {
+                            showMessage("⚠️ Cloud-Speichern fehlgeschlagen (offline?)", true);
+                        }
+                    })();
+                }
                 refreshUI();
             } catch (e) {
                 console.error("Fehler beim Speichern", e);
