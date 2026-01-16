@@ -318,6 +318,2399 @@
         
         const predefinedProviders = ['o2', 'HeTec', 'GreenMnky', 'Freiertext'];
 
+        // --- FIXED BUNDLE SLOTS (3 pro Canvas) ---
+        // Regel: Bundle-Slots werden NICHT geloescht, nur aktiviert/deaktiviert.
+        const BUNDLE_CANVAS_CATEGORIES = [
+            { key: 'canvas1', label: '1. Hardware, Anbieter & Nutzung' },
+            { key: 'canvas2', label: '2. Haushalt und weitere Produkte' },
+            { key: 'canvas3', label: '3. Fernsehen & Wi-Fi' },
+        ];
+
+        const FIXED_BUNDLE_SLOTS = [
+            { id: 'hw-01', categoryKey: 'canvas1', label: 'Canvas 1 - Angebot 1' },
+            { id: 'hw-02', categoryKey: 'canvas1', label: 'Canvas 1 - Angebot 2' },
+            { id: 'hw-03', categoryKey: 'canvas1', label: 'Canvas 1 - Angebot 3' },
+            { id: 'home-01', categoryKey: 'canvas2', label: 'Canvas 2 - Angebot 1' },
+            { id: 'home-02', categoryKey: 'canvas2', label: 'Canvas 2 - Angebot 2' },
+            { id: 'home-03', categoryKey: 'canvas2', label: 'Canvas 2 - Angebot 3' },
+            { id: 'tv-01', categoryKey: 'canvas3', label: 'Canvas 3 - Angebot 1' },
+            { id: 'tv-02', categoryKey: 'canvas3', label: 'Canvas 3 - Angebot 2' },
+            { id: 'tv-03', categoryKey: 'canvas3', label: 'Canvas 3 - Angebot 3' },
+        ];
+
+        function __getCategoryLabel(key) {
+            return (BUNDLE_CANVAS_CATEGORIES.find(c => c.key === key) || {}).label || key || '';
+        }
+
+        function __getSlotMeta(id) {
+            return FIXED_BUNDLE_SLOTS.find(s => s.id === id) || null;
+        }
+
+        function __bundleOrderIndex(id) {
+            const idx = FIXED_BUNDLE_SLOTS.findIndex(s => s.id === id);
+            return idx === -1 ? 9999 : idx;
+        }
+
+        function sortBundlesForUI(list) {
+            return [...(list || [])].sort((a, b) => __bundleOrderIndex(a.id) - __bundleOrderIndex(b.id));
+        }
+
+        function ensureFixedBundleSlots() {
+            const fixedIds = new Set(FIXED_BUNDLE_SLOTS.map(s => s.id));
+            const map = new Map((bundles || []).map(b => [b.id, b]));
+
+            const fixed = [];
+            for (const slot of FIXED_BUNDLE_SLOTS) {
+                const existing = map.get(slot.id);
+                if (existing) {
+                    existing.__fixedSlot = true;
+                    existing.legacy = false;
+                    existing.categoryKey = slot.categoryKey;
+                    existing.categoryLabel = __getCategoryLabel(slot.categoryKey);
+                    if (typeof existing.active !== 'boolean') existing.active = true;
+                    if (!Array.isArray(existing.images)) existing.images = [];
+                    fixed.push(existing);
+                } else {
+                    fixed.push({
+                        id: slot.id,
+                        __fixedSlot: true,
+                        legacy: false,
+                        categoryKey: slot.categoryKey,
+                        categoryLabel: __getCategoryLabel(slot.categoryKey),
+                        active: false,
+                        titel: '',
+                        tarifName: '',
+                        angebotspreis: '',
+                        optionOnlineSchutz: false,
+                        optionTV: false,
+                        optionCustom: '',
+                        images: [],
+                        shopLink: '',
+                        gutscheincode: '',
+                        rechnungsweg: '',
+                        start: '',
+                        end: '',
+                        createdAt: new Date().toISOString()
+                    });
+                }
+            }
+
+            const legacy = (bundles || []).filter(b => !fixedIds.has(b.id)).map(b => ({
+                ...b,
+                legacy: true,
+                __fixedSlot: false,
+                active: false,
+                categoryKey: b.categoryKey || 'legacy',
+                categoryLabel: b.categoryLabel || 'Legacy'
+            }));
+
+            bundles = [...fixed, ...legacy];
+        }
+
+        function populateBundleSlotOptions() {
+            const sel = document.getElementById('bundleSlot');
+            if (!sel) return;
+            sel.innerHTML = '';
+
+            for (const cat of BUNDLE_CANVAS_CATEGORIES) {
+                const og = document.createElement('optgroup');
+                og.label = cat.label;
+                FIXED_BUNDLE_SLOTS.filter(s => s.categoryKey === cat.key).forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = `${s.label} (ID: ${s.id})`;
+                    og.appendChild(opt);
+                });
+                sel.appendChild(og);
+            }
+        }
+        // --- /FIXED BUNDLE SLOTS ---
+
+
+        const generateId = () => {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        };
+
+        // --- DATEN LADE/SPEICHER LOGIK ---
+
+        async function loadData() {
+            try {
+                const pData = localStorage.getItem(STORAGE_KEY_PROMOTIONS);
+                const iData = localStorage.getItem(STORAGE_KEY_INCENTIVES);
+                const pushData = localStorage.getItem(STORAGE_KEY_PUSH);
+                const bundleData = localStorage.getItem(STORAGE_KEY_BUNDLES);
+                let pdfLocal = localStorage.getItem(STORAGE_KEY_PDF);
+                const changesData = localStorage.getItem(STORAGE_KEY_CHANGES);
+
+                if (!pdfLocal) {
+                    try {
+                        const response = await fetch(`data/${UPLOADED_PDF_FILE.contentFetchId}`);
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            const base64 = await new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => resolve(reader.result);
+                                reader.readAsDataURL(blob);
+                            });
+                            const newPdfData = {
+                                name: UPLOADED_PDF_FILE.fileName,
+                                data: base64,
+                                date: new Date().toLocaleDateString()
+                            };
+                            localStorage.setItem(STORAGE_KEY_PDF, JSON.stringify(newPdfData));
+                            pdfLocal = JSON.stringify(newPdfData);
+                            showMessage("Hochgeladene PDF-Datei automatisch geladen.");
+                        }
+                    } catch (e) {
+                        console.warn("Konnte hochgeladene PDF nicht automatisch laden.", e);
+                    }
+                }
+                
+                promotions = pData ? JSON.parse(pData) : [];
+                incentives = iData ? JSON.parse(iData) : [];
+                bundles = bundleData ? JSON.parse(bundleData) : [];
+                ensureFixedBundleSlots();
+                recentChanges = changesData ? JSON.parse(changesData) : [];
+                
+                pushProvisions = pushData ? JSON.parse(pushData).map(p => {
+                    if (!p.betrag && typeof p.titel === 'string' && p.titel.includes('€')) {
+                        const numericPart = parseFloat(p.titel.replace('€', '').trim());
+                        return {
+                            ...p,
+                            titel: 'Zusatz-Push',
+                            betrag: isNaN(numericPart) ? 0 : numericPart,
+                        };
+                    }
+                    p.betrag = p.betrag ? parseFloat(p.betrag) : 0;
+                    return p;
+                }) : [];
+                pdfData = pdfLocal ? JSON.parse(pdfLocal) : null;
+                
+                promotions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                incentives.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                pushProvisions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                bundles = sortBundlesForUI(bundles);
+
+                // CHECK FOR BUNDLE ID IN URL (DEEP LINKING)
+                const urlParams = new URLSearchParams(window.location.search);
+                const bundleId = urlParams.get('bundleId');
+                
+                if(bundleId) {
+                    // Activate Single View Mode
+                    renderSingleBundleView(bundleId);
+                } else {
+                    refreshUI();
+                }
+
+            } catch (e) {
+                console.error("Fehler beim Laden der lokalen Daten", e);
+                showMessage("Fehler beim Laden der Daten", true);
+            }
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(promotions));
+                localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(incentives));
+                localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(pushProvisions));
+                localStorage.setItem(STORAGE_KEY_BUNDLES, JSON.stringify(bundles));
+                refreshUI();
+            } catch (e) {
+                console.error("Fehler beim Speichern", e);
+                showMessage("Speicherfehler (Speicher voll?)", true);
+            }
+        }
+
+        // --- UPDATE / EMAIL LOGIK ---
+
+        function addRecentChange(text) {
+            recentChanges.push(text);
+            localStorage.setItem(STORAGE_KEY_CHANGES, JSON.stringify(recentChanges));
+            refreshUI(); 
+        }
+
+        function sendUpdateEmail() {
+            if (recentChanges.length === 0) {
+                showMessage("Keine gespeicherten Änderungen zum Versenden.", true);
+                return;
+            }
+            const subject = encodeURIComponent("News in der Aktionsmappe");
+            const bodyContent = "Hallo Zusammen,\n\nhier sind die neuesten Updates aus der Aktionsmappe:\n\n" + 
+                                recentChanges.map(c => "- " + c).join("\n") + 
+                                "\n\nBitte prüft die aktuelle Mappe für Details.\n\nViele Grüße";
+            const body = encodeURIComponent(bodyContent);
+            window.location.href = `mailto:?subject=${subject}&body=${body}`;
+            setTimeout(() => {
+                if(confirm("Hat sich das E-Mail Fenster geöffnet? Sollen die Änderungen nun aus der Liste 'ungesendet' entfernt werden?")) {
+                    recentChanges = [];
+                    localStorage.removeItem(STORAGE_KEY_CHANGES);
+                    refreshUI();
+                    showMessage("Änderungsliste zurückgesetzt.");
+                }
+            }, 1000);
+        }
+
+        function updateEmailButtonBadge() {
+            const badge = document.getElementById('email-badge');
+            if (recentChanges.length > 0) {
+                badge.textContent = recentChanges.length;
+                badge.classList.remove('hidden');
+                badge.classList.add('badge-pulse');
+            } else {
+                badge.classList.add('hidden');
+                badge.classList.remove('badge-pulse');
+            }
+        }
+
+        function refreshUI() {
+            if (typeof filterAdminPromotions === 'function') filterAdminPromotions(); 
+            if (typeof renderAdminIncentiveList === 'function') renderAdminIncentiveList(incentives);
+            if (typeof renderAdminPushList === 'function') renderAdminPushList(pushProvisions); 
+            if (typeof renderAdminBundleList === 'function') renderAdminBundleList(bundles); 
+            
+            const userSearchInput = document.getElementById('user-search');
+            if (userSearchInput && userSearchInput.value) {
+                if (typeof handleUserSearch === 'function') handleUserSearch(); 
+            } else {
+                if (typeof renderUserView === 'function') renderUserView(promotions, incentives, pushProvisions, bundles);
+            }
+
+            if (typeof renderPdfView === 'function') renderPdfView(); 
+            updateEmailButtonBadge();
+        }
+
+        // --- SINGLE BUNDLE LINKING LOGIC (NEU) ---
+        function renderSingleBundleView(bundleId) {
+            // Ensure User view is active, Admin hidden
+            document.getElementById('admin-view').classList.add('hidden');
+            document.getElementById('user-view').classList.remove('hidden');
+            document.getElementById('view-toggle').checked = false;
+            document.getElementById('view-name').textContent = 'Einzelansicht';
+            
+            // Hide standard User View elements (using a class helper logic)
+            document.getElementById('toc-container').classList.add('hidden-on-single', 'hidden');
+            document.getElementById('user-push-list').parentElement.classList.add('hidden-on-single', 'hidden');
+            document.getElementById('user-incentive-list').parentElement.classList.add('hidden-on-single', 'hidden');
+            document.getElementById('device-actions-header').classList.add('hidden-on-single', 'hidden');
+            document.getElementById('user-view-content').classList.add('hidden-on-single', 'hidden');
+            document.getElementById('user-pdf-container').classList.add('hidden-on-single', 'hidden');
+            
+            // Header controls adjustments for single view
+            document.querySelector('.toggle-switch').style.display = 'none'; // Hide Admin switch
+            document.getElementById('user-search-container').style.display = 'none'; // Hide Search
+
+            // Find Bundle
+            const bundle = bundles.find(b => b.id === bundleId);
+            const bundleListEl = document.getElementById('user-bundle-list');
+            const bundleHeaderEl = document.getElementById('bundle-section-header');
+            
+            // Show Back Button
+            const backBtn = document.createElement('button');
+            backBtn.id = 'single-view-back-btn';
+            backBtn.textContent = '← Zurück zur Übersicht';
+            backBtn.className = 'mb-6 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition font-semibold';
+            backBtn.onclick = () => {
+                // Remove ID from URL without reload
+                const url = new URL(window.location);
+                url.searchParams.delete('bundleId');
+                window.history.pushState({}, '', url);
+                window.location.reload(); // Reload to restore full state cleanly
+            };
+            
+            // Insert Back Button before Title
+            const titleContainer = document.querySelector('#user-view h2').parentElement;
+            titleContainer.insertBefore(backBtn, titleContainer.firstChild);
+
+            if (bundle) {
+                window.__ACTIVE_BUNDLE_FOR_TRANSFER = bundle;
+                // Render ONLY this bundle.
+                 // Optional: wenn im PencilSelling-iFrame geöffnet, einmal automatisch senden
+                 setTimeout(() => { try { if (window.parent && window.parent !== window) sendBundleDataToParent(bundle); } catch(_) {} }, 800);
+                 renderUserView([], [], [], [bundle], true); 
+                 bundleListEl.classList.remove('hidden');
+                 bundleHeaderEl.classList.remove('hidden');
+                 bundleHeaderEl.querySelector('h3').textContent = "Ihre Auswahl:";
+            } else {
+                bundleListEl.innerHTML = '<div class="p-8 bg-red-100 text-red-700 rounded-lg text-center font-bold">Angebot nicht gefunden oder abgelaufen.</div>';
+                bundleListEl.classList.remove('hidden');
+            }
+        }
+
+        // --- BUNDLE -> PENCILSELLING AUTO-IMPORT (postMessage) ---
+        // Speichert das aktuell geöffnete Bundle (Einzelansicht) für den Import ins PencilSelling-Dashboard.
+        window.__ACTIVE_BUNDLE_FOR_TRANSFER = window.__ACTIVE_BUNDLE_FOR_TRANSFER || null;
+
+        function __normalizeEuro(val) {
+            const s = String(val ?? '').trim();
+            if (!s) return '';
+            // akzeptiert "89,99", "89.99", "89,99 €"
+            if (s.includes('€')) return s;
+            return s + ' €';
+        }
+
+        function __buildDetailsHTMLFromText(text) {
+            const raw = String(text ?? '').replace(/\r/g, '').trim();
+            if (!raw) return '';
+            const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+            // Wenn schon Bullet-Style drin ist, übernehmen wir es als Liste.
+            const items = [];
+            for (const l of lines) {
+                const cleaned = l.replace(/^[-•]\s*/, '').trim();
+                if (!cleaned) continue;
+                items.push(cleaned);
+            }
+            if (!items.length) return '';
+            return `
+                <ul style="margin:0; padding-left:18px;">
+                    ${items.map(i => `<li style="margin:6px 0;">${i.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</li>`).join('')}
+                </ul>
+            `;
+        }
+
+        function __extractBadgesFromBundle(b) {
+            const badges = [];
+            if (!b) return badges;
+            if (b.optionOnlineSchutz) badges.push('inkl. online Schutz');
+            if (b.optionTV) badges.push('o2 TV');
+            const custom = String(b.optionCustom ?? '').trim();
+            if (custom) badges.push(custom);
+            // Ein paar häufige Keywords aus dem Rechnungsweg als Badge übernehmen
+            const rw = String(b.rechnungsweg ?? '').toLowerCase();
+            if (rw.includes('online to offline')) badges.push('online to offline');
+            return badges.slice(0, 6);
+        }
+
+        function sendBundleDataToParent(bundle) {
+            const b = bundle || window.__ACTIVE_BUNDLE_FOR_TRANSFER;
+            if (!b) return;
+
+            const images = Array.isArray(b.images) ? b.images.filter(Boolean).slice(0, 2) : [];
+            const badges = __extractBadgesFromBundle(b);
+            const detailsHTML = __buildDetailsHTMLFromText(b.rechnungsweg || '');
+
+            const payload = {
+                type: 'BUNDLE_DATA_TRANSFER',
+                titel: b.titel || 'Bundle',
+                tarifName: b.tarifName || '',
+                preis: __normalizeEuro(b.angebotspreis || ''),
+                detailsHTML: detailsHTML,
+                badges: badges,
+                validUntil: b.end || '',
+                images: images,
+
+                // Backward-Compat
+                bezeichnung: b.titel || 'Bundle',
+                artikelName: b.tarifName || '',
+                bildUrl: images[0] || ''
+            };
+
+            // Nur senden, wenn wir wirklich in einem iFrame / Parent-Kontext sind
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage(payload, '*');
+                console.log('[Aktionsmappe] BUNDLE_DATA_TRANSFER gesendet:', payload);
+            }
+        }
+
+        // Empfängt Anfrage vom PencilSelling (BundleModal) und antwortet mit BUNDLE_DATA_TRANSFER.
+        window.addEventListener('message', (e) => {
+            const d = e.data || {};
+            if (d && d.type === 'REQUEST_BUNDLE_SCREENSHOT') {
+                // Wir senden bewusst Daten (HTML) statt Screenshot.
+                sendBundleDataToParent();
+            }
+        });
+        // --- /BUNDLE -> PENCILSELLING AUTO-IMPORT ---
+
+        window.copyBundleLink = (id) => {
+            const baseUrl = window.location.href.split('?')[0];
+            const link = `${baseUrl}?bundleId=${id}`;
+            navigator.clipboard.writeText(link).then(() => {
+                showMessage("🔗 Direkt-Link in Zwischenablage kopiert!");
+            }, (err) => {
+                console.error('Copy failed', err);
+                prompt("Kopieren fehlgeschlagen. Hier ist der Link:", link);
+            });
+        };
+
+        // --- PDF LOGIK ---
+        // (Unverändert)
+        window.handlePdfUpload = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            if (file.type !== 'application/pdf') {
+                showMessage("Bitte nur PDF-Dateien auswählen!", true);
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                if(!confirm("Die Datei ist größer als 5MB. Das Speichern im Browser könnte fehlschlagen. Trotzdem versuchen?")) return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result;
+                const newPdfData = { name: file.name, data: base64, date: new Date().toLocaleDateString() };
+                try {
+                    localStorage.setItem(STORAGE_KEY_PDF, JSON.stringify(newPdfData));
+                    pdfData = newPdfData;
+                    renderPdfView();
+                    showMessage("PDF erfolgreich gespeichert!");
+                } catch (err) {
+                    console.error(err);
+                    showMessage("Fehler: PDF zu groß für den lokalen Speicher!", true);
+                }
+            };
+            reader.readAsDataURL(file);
+        };
+
+        window.deletePdf = () => {
+            if(!confirm("Möchten Sie das gespeicherte PDF wirklich löschen?")) return;
+            localStorage.removeItem(STORAGE_KEY_PDF);
+            pdfData = null;
+            renderPdfView();
+            document.getElementById('pdf-upload-input').value = '';
+            showMessage("PDF gelöscht.");
+        };
+
+        function renderPdfView() {
+            const containerUser = document.getElementById('user-pdf-container');
+            const containerAdmin = document.getElementById('admin-pdf-preview');
+            const statusLabel = document.getElementById('pdf-status-label');
+
+            if (!pdfData) {
+                const noPdfHtml = '<p class="text-gray-400 italic">Keine PDF-Übersicht hinterlegt.</p>';
+                if(containerUser) { containerUser.innerHTML = ''; containerUser.classList.add('hidden'); }
+                if(containerAdmin) containerAdmin.innerHTML = noPdfHtml;
+                if(statusLabel) statusLabel.textContent = "Kein PDF ausgewählt";
+                return;
+            }
+            if(statusLabel) statusLabel.textContent = `Aktuelles PDF: ${pdfData.name} (vom ${pdfData.date})`;
+            const embedHtml = `
+                <div class="mt-4 border-t-4 border-gray-800 bg-white rounded-xl shadow-lg p-4 break-before-page">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">📄 Aktionsübersicht (PDF)</h3>
+                        <span class="text-xs text-gray-500">${pdfData.name}</span>
+                    </div>
+                    <object data="${pdfData.data}" type="application/pdf" width="100%" height="800px" class="rounded border border-gray-200">
+                        <p>Ihr Browser kann dieses PDF nicht direkt anzeigen. <a href="${pdfData.data}" download="${pdfData.name}" class="text-blue-600 underline">Hier klicken zum Download</a>.</p>
+                    </object>
+                </div>
+            `;
+            if(containerUser) { containerUser.innerHTML = embedHtml; containerUser.classList.remove('hidden'); }
+            if(containerAdmin) containerAdmin.innerHTML = embedHtml;
+        }
+
+        // --- FILTER FUNKTIONEN (ADMIN & USER) ---
+        function filterAdminPromotions() {
+            const searchInput = document.getElementById('admin-search');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+            let filteredList = promotions;
+            if (searchTerm) {
+                filteredList = promotions.filter(p => 
+                    (p.geraetebezeichnung && p.geraetebezeichnung.toLowerCase().includes(searchTerm)) ||
+                    (p.anbieter && p.anbieter.toLowerCase().includes(searchTerm))
+                );
+            }
+            renderAdminPromotionList(filteredList);
+        }
+
+        function handleUserSearch() {
+            const searchInput = document.getElementById('user-search');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
+            if (!searchTerm) {
+                renderUserView(promotions, incentives, pushProvisions, bundles);
+                return;
+            }
+
+            const filteredPromotions = promotions.filter(p => 
+                (p.geraetebezeichnung && p.geraetebezeichnung.toLowerCase().includes(searchTerm)) ||
+                (p.anbieter && p.anbieter.toLowerCase().includes(searchTerm)) ||
+                (p.bemerkung && p.bemerkung.toLowerCase().includes(searchTerm))
+            );
+            const filteredIncentives = incentives.filter(i => 
+                (i.titel && i.titel.toLowerCase().includes(searchTerm)) ||
+                (i.bemerkung && i.bemerkung.toLowerCase().includes(searchTerm))
+            );
+            const filteredPush = pushProvisions.filter(p => 
+                (p.titel && p.titel.toLowerCase().includes(searchTerm)) ||
+                (p.bemerkung && p.bemerkung.toLowerCase().includes(searchTerm))
+            );
+            const filteredBundles = bundles.filter(b =>
+                (b.titel && b.titel.toLowerCase().includes(searchTerm)) ||
+                (b.rechnungsweg && b.rechnungsweg.toLowerCase().includes(searchTerm))
+            );
+
+            renderUserView(filteredPromotions, filteredIncentives, filteredPush, filteredBundles);
+        }
+
+        // --- BESUCHER TRACKING ---
+        const trackAndDisplayVisits = () => {
+            const today = new Date();
+            const currentMonthYear = `${today.getFullYear()}-${today.getMonth() + 1}`;
+            let visitsData = { count: 0, monthYear: currentMonthYear };
+            const storedVisits = localStorage.getItem(STORAGE_KEY_VISITS);
+            if (storedVisits) {
+                try {
+                    const parsed = JSON.parse(storedVisits);
+                    if (parsed.monthYear === currentMonthYear) { visitsData = parsed; } 
+                    else { visitsData.monthYear = currentMonthYear; visitsData.count = 0; }
+                } catch(e) {}
+            }
+            visitsData.count++;
+            localStorage.setItem(STORAGE_KEY_VISITS, JSON.stringify(visitsData));
+            document.getElementById('visit-counter-display').textContent = `Besuche diesen Monat: ${visitsData.count}`;
+        };
+
+        // --- HELPER FUNKTIONEN ---
+        const calculateMargin = (einkauf, verkauf, noEK, noVK) => {
+            if (noEK || noVK) return null; 
+            const e = parseFloat(einkauf);
+            const v = parseFloat(verkauf);
+            if (isNaN(e) || isNaN(v)) return 'N/A';
+            return ((v / 1.19) - e).toFixed(2);
+        };
+
+        const showMessage = (message, isError = false) => {
+            const msgEl = document.getElementById('status-message');
+            msgEl.textContent = message;
+            msgEl.className = `p-3 mb-4 rounded-lg text-white ${isError ? 'bg-red-500' : 'bg-green-500'}`;
+            msgEl.classList.remove('hidden');
+            setTimeout(() => msgEl.classList.add('hidden'), 3000);
+        };
+
+        const isExpired = (endDateStr) => {
+            if (!endDateStr) return true; 
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const [year, month, day] = endDateStr.split('-').map(Number);
+            const endDate = new Date(Date.UTC(year, month - 1, day));
+            return endDate < today;
+        };
+
+        const formatCurrencyInput = (input) => {
+            let val = input.value.trim();
+            if (!val || val.includes('€')) return;
+            if (/\d/.test(val)) {
+                input.value = val + ' €';
+            }
+        };
+
+        window.exportToPdf = () => {
+            setTimeout(() => {
+                window.print();
+            }, 100);
+        };
+
+        window.togglePriceInput = (type, isChecked) => {
+            const input = document.getElementById(type === 'EK' ? 'einkaufspreis' : 'verkaufspreis');
+            if (isChecked) {
+                input.value = '';
+                input.disabled = true;
+                input.classList.add('bg-gray-100');
+            } else {
+                input.disabled = false;
+                input.classList.remove('bg-gray-100');
+            }
+            const eEl = document.getElementById('einkaufspreis');
+            const vEl = document.getElementById('verkaufspreis');
+            const margePreviewEl = document.getElementById('marge-preview');
+            if (eEl.disabled || vEl.disabled) {
+                margePreviewEl.textContent = 'Marge: -';
+                margePreviewEl.className = 'text-gray-400 font-semibold text-lg';
+            } else {
+                const e = parseFloat(eEl.value);
+                const v = parseFloat(vEl.value);
+                if (!isNaN(e) && !isNaN(v)) {
+                    const m = ((v / 1.19) - e);
+                    margePreviewEl.textContent = `Vorschau Marge (Netto): ${m.toFixed(2)} €`;
+                    margePreviewEl.className = `font-semibold ${m >= 0 ? 'text-green-600' : 'text-red-600'}`;
+                } else {
+                    margePreviewEl.textContent = '';
+                }
+            }
+        };
+
+        // --- BACKUP LOGIK ---
+        window.exportData = () => {
+            const dataToExport = {
+                promotions: promotions,
+                incentives: incentives,
+                pushProvisions: pushProvisions,
+                bundles: bundles 
+            };
+            const jsonString = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `aktionsmappe_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showMessage("Daten erfolgreich als JSON exportiert.");
+        };
+
+        window.importData = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+                showMessage("Bitte wählen Sie eine gültige JSON-Backup-Datei.", true);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsedData = JSON.parse(e.target.result);
+                    if (!parsedData.promotions || !parsedData.incentives) {
+                         showMessage("Fehler: Die JSON-Datei hat nicht die erwartete Struktur.", true);
+                         return;
+                    }
+                    localStorage.setItem(STORAGE_KEY_PROMOTIONS, JSON.stringify(parsedData.promotions));
+                    localStorage.setItem(STORAGE_KEY_INCENTIVES, JSON.stringify(parsedData.incentives));
+                    localStorage.setItem(STORAGE_KEY_PUSH, JSON.stringify(parsedData.pushProvisions || []));
+                    localStorage.setItem(STORAGE_KEY_BUNDLES, JSON.stringify(parsedData.bundles || [])); 
+                    loadData();
+                    showMessage(`Daten von Backup-Datei erfolgreich wiederhergestellt!`);
+                } catch (err) {
+                    console.error("Import Fehler:", err);
+                    showMessage("Fehler beim Parsen der JSON-Datei. Ist sie beschädigt?", true);
+                }
+            };
+            reader.readAsText(file);
+        };
+
+
+        // --- CRUD ACTIONS (BUNDLES) ---
+        
+        window.addBundleImageField = (value = '') => {
+            const container = document.getElementById('bundle-images-container');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex gap-2 items-center';
+            const input = document.createElement('input');
+            input.type = 'url';
+            input.value = value;
+            input.placeholder = 'https://beispiel.de/bild.jpg';
+            input.className = 'block w-full rounded-md border-gray-300 shadow-sm p-2 border flex-grow';
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.innerHTML = '🗑️';
+            removeBtn.className = 'bg-red-100 text-red-600 px-3 py-2 rounded hover:bg-red-200 transition';
+            removeBtn.onclick = () => wrapper.remove();
+            wrapper.appendChild(input);
+            wrapper.appendChild(removeBtn);
+            container.appendChild(wrapper);
+        };
+
+        window.saveBundle = (event) => {
+            event.preventDefault();
+            const form = event.target;
+
+            const slotId = (form.bundleSlot && form.bundleSlot.value) ? form.bundleSlot.value : '';
+            const meta = __getSlotMeta(slotId);
+            if (!meta) {
+                showMessage('Bitte einen gueltigen Bundle-Slot auswaehlen.', true);
+                return;
+            }
+
+            const imageInputs = document.querySelectorAll('#bundle-images-container input');
+            const imagesArray = Array.from(imageInputs).map(input => input.value.trim()).filter(url => url.length > 0);
+
+            const existing = bundles.find(b => b.id === slotId);
+            const createdAt = existing?.createdAt || new Date().toISOString();
+
+            const data = {
+                id: slotId,
+                __fixedSlot: true,
+                legacy: false,
+                categoryKey: meta.categoryKey,
+                categoryLabel: __getCategoryLabel(meta.categoryKey),
+                active: !!form.bundleActive?.checked,
+
+                titel: form.bundleTitel.value,
+                tarifName: form.bundleTarifName.value,
+                angebotspreis: form.bundlePreis.value,
+                optionOnlineSchutz: form.bundleOptionOnlineSchutz.checked,
+                optionTV: form.bundleOptionTV.checked,
+                optionCustom: form.bundleOptionCustom.value,
+                images: imagesArray,
+                shopLink: form.bundleShopLink.value,
+                gutscheincode: form.bundleGutschein.value,
+                rechnungsweg: form.bundleRechnungsweg.value,
+                start: form.bundleStart.value,
+                end: form.bundleEnd.value,
+                createdAt: createdAt
+            };
+
+            const idx = bundles.findIndex(b => b.id === slotId);
+            if (idx !== -1) {
+                bundles[idx] = data;
+                showMessage('Bundle-Slot aktualisiert!');
+            } else {
+                bundles.push(data);
+                showMessage('Bundle-Slot gespeichert!');
+            }
+
+            saveData();
+
+            // Form bleibt auf Slot, damit du schnell ueberschreiben kannst
+            document.getElementById('bundle-submit-btn').textContent = 'Bundle Slot Speichern';
+        };
+
+        window.deleteBundle = (id) => {
+            // Regel: NICHT loeschen, nur deaktivieren
+            const idx = bundles.findIndex(b => b.id === id);
+            if (idx === -1) return;
+            bundles[idx].active = false;
+            saveData();
+            showMessage('Bundle wurde deaktiviert (nicht geloescht).');
+        };
+
+        window.toggleBundleActive = (id) => {
+            const idx = bundles.findIndex(b => b.id === id);
+            if (idx === -1) return;
+            bundles[idx].active = !bundles[idx].active;
+            saveData();
+            showMessage(bundles[idx].active ? 'Bundle aktiviert.' : 'Bundle deaktiviert.');
+        };
+
+
+        window.editBundle = (id) => {
+            const data = bundles.find(b => b.id === id);
+            if (!data) return;
+
+            const form = document.getElementById('bundle-form');
+            // Slot ist fix: beim Bearbeiten sperren wir die Auswahl.
+            if (form.bundleSlot) {
+                populateBundleSlotOptions();
+                form.bundleSlot.value = id;
+                form.bundleSlot.disabled = true;
+            }
+            if (form.bundleActive) form.bundleActive.checked = (typeof data.active === 'boolean') ? data.active : true;
+
+            form.bundleTitel.value = data.titel || '';
+            form.bundleTarifName.value = data.tarifName || '';
+            form.bundlePreis.value = data.angebotspreis || '';
+            form.bundleOptionOnlineSchutz.checked = !!data.optionOnlineSchutz;
+            form.bundleOptionTV.checked = !!data.optionTV;
+            form.bundleOptionCustom.value = data.optionCustom || '';
+
+            const container = document.getElementById('bundle-images-container');
+            container.innerHTML = '';
+            if (Array.isArray(data.images) && data.images.length > 0) {
+                data.images.forEach(url => addBundleImageField(url));
+            } else {
+                addBundleImageField();
+            }
+
+            form.bundleShopLink.value = data.shopLink || '';
+            form.bundleGutschein.value = data.gutscheincode || '';
+            form.bundleRechnungsweg.value = data.rechnungsweg || '';
+            form.bundleStart.value = data.start || '';
+            form.bundleEnd.value = data.end || '';
+
+            document.getElementById('bundle-submit-btn').textContent = 'Bundle Slot Speichern';
+            document.getElementById('bundle-form').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        window.copyToClipboard = (text) => {
+            navigator.clipboard.writeText(text).then(() => {
+                showMessage("Gutscheincode kopiert!");
+            }, (err) => {
+                console.error('Async: Could not copy text: ', err);
+            });
+        };
+
+
+        // --- CRUD ACTIONS (PUSH PROVISION) ---
+        window.savePushProvision = (event) => {
+            event.preventDefault();
+            const form = event.target;
+            const betragValue = parseFloat(form.pushBetrag.value);
+            if (isNaN(betragValue) || betragValue <= 0) {
+                 showMessage("Bitte geben Sie einen gültigen Betrag (> 0) ein.", true);
+                 return;
+            }
+            const data = {
+                id: form.dataset.editingId || generateId(),
+                titel: form.pushTitel.value || 'Zusatz-Push', 
+                betrag: betragValue, 
+                start: form.pushStart.value,
+                end: form.pushEnd.value,
+                bemerkung: form.pushBemerkung.value,
+                createdAt: form.dataset.editingId ? (pushProvisions.find(p => p.id === form.dataset.editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+            };
+
+            let changeLogEntry = null;
+            if(!form.dataset.editingId) {
+                changeLogEntry = `💰 Neuer PUSH: ${data.titel} (${data.betrag.toFixed(2)}€) ab ${data.start}`;
+            } else {
+                 const oldPush = pushProvisions.find(p => p.id === form.dataset.editingId);
+                 if (oldPush && oldPush.betrag !== data.betrag) {
+                     if (data.betrag > oldPush.betrag) {
+                         changeLogEntry = `💰 PUSH ERHÖHT: ${data.titel} jetzt ${data.betrag.toFixed(2)}€ (vorher ${oldPush.betrag.toFixed(2)}€)`;
+                     } else {
+                         changeLogEntry = `📉 Push gesenkt: ${data.titel} auf ${data.betrag.toFixed(2)}€`;
+                     }
+                 }
+            }
+
+            if (form.dataset.editingId) {
+                const index = pushProvisions.findIndex(p => p.id === form.dataset.editingId);
+                if (index !== -1) pushProvisions[index] = data;
+                showMessage("Push Provision aktualisiert!");
+            } else {
+                pushProvisions.push(data);
+                showMessage("Push Provision gespeichert!");
+            }
+
+            if(changeLogEntry) addRecentChange(changeLogEntry);
+            saveData();
+            form.reset();
+            delete form.dataset.editingId;
+            document.getElementById('push-submit-btn').textContent = 'Push Speichern';
+        };
+
+        window.deletePushProvision = (id) => {
+            if (!confirm('Wirklich löschen?')) return;
+            pushProvisions = pushProvisions.filter(p => p.id !== id);
+            saveData();
+            showMessage("Push gelöscht.");
+        };
+
+        window.editPushProvision = (id) => {
+            const data = pushProvisions.find(p => p.id === id);
+            if (!data) return;
+            const form = document.getElementById('push-form');
+            form.pushTitel.value = data.titel || ''; 
+            form.pushBetrag.value = data.betrag || 0; 
+            form.pushStart.value = data.start || '';
+            form.pushEnd.value = data.end || '';
+            form.pushBemerkung.value = data.bemerkung || '';
+            form.dataset.editingId = id;
+            document.getElementById('push-submit-btn').textContent = 'Änderungen Speichern';
+            document.getElementById('push-form').scrollIntoView({ behavior: 'smooth' });
+        };
+
+
+        // --- CRUD ACTIONS (PROMOTIONS) ---
+
+        window.savePromotion = (event) => {
+            event.preventDefault();
+            const form = event.target;
+            let anbieterValue = form.anbieterSelect.value;
+            if (anbieterValue === 'Freiertext') anbieterValue = form.anbieterFreiertext.value;
+            if (!anbieterValue) { showMessage("Bitte geben Sie einen Anbieter ein.", true); return; }
+
+            const data = {
+                id: form.dataset.editingId || generateId(),
+                anbieter: anbieterValue, 
+                geraetebezeichnung: form.geraetebezeichnung.value,
+                aktionsbeginn: form.aktionsbeginn.value,
+                aktionsende: form.aktionsende.value,
+                einkaufspreis: parseFloat(form.einkaufspreis.value) || 0,
+                verkaufspreis: parseFloat(form.verkaufspreis.value) || 0,
+                noEinkaufspreis: form.noEinkaufspreis.checked,
+                noVerkaufspreis: form.noVerkaufspreis.checked,
+                einmalzahlungXL: form.einmalzahlungXL.value,
+                einmalzahlungL: form.einmalzahlungL.value,
+                einmalzahlungM: form.einmalzahlungM.value,
+                einmalzahlungS: form.einmalzahlungS.value,
+                einmalzahlungHomeXL: form.einmalzahlungHomeXL.value,
+                einmalzahlungHomeL: form.einmalzahlungHomeL.value,
+                einmalzahlungHomeM: form.einmalzahlungHomeM.value,
+                einmalzahlungHomeS: form.einmalzahlungHomeS.value,
+                mobile: form.mobile.checked,
+                myhome: form.myhome.checked,
+                data: form.data.checked,
+                anschlussbefreiung: form.anschlussbefreiung.checked,
+                zusatzpush: form.zusatzpush.checked,
+                sonderprovision: form.sonderprovision.value,
+                bemerkung: form.bemerkung.value,
+                bildUrl: form.bildUrl.value,
+                hwBenefit24: form.hwBenefit24.value,
+                hwBenefit36: form.hwBenefit36.value,
+                createdAt: form.dataset.editingId ? (promotions.find(p => p.id === form.dataset.editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+            };
+
+            let changesLog = []; 
+            if (form.dataset.editingId) {
+                const oldData = promotions.find(p => p.id === form.dataset.editingId);
+                if (oldData) {
+                    const oldPrice = parseFloat(oldData.verkaufspreis);
+                    const newPrice = parseFloat(data.verkaufspreis);
+                    if (!data.noVerkaufspreis && !oldData.noVerkaufspreis) {
+                        if (newPrice < oldPrice) changesLog.push(`🔥 Preissturz: ${data.geraetebezeichnung} (${data.anbieter}) jetzt nur noch ${newPrice.toFixed(2)} €!`);
+                        else if (newPrice > oldPrice) changesLog.push(`📈 Preisanstieg: ${data.geraetebezeichnung} (${data.anbieter}) jetzt ${newPrice.toFixed(2)} €.`);
+                    } else if (!data.noVerkaufspreis && oldData.noVerkaufspreis) {
+                        changesLog.push(`🔥 Neu bepreist: ${data.geraetebezeichnung} (${data.anbieter}) jetzt für ${newPrice.toFixed(2)} €!`);
+                    }
+                }
+                const index = promotions.findIndex(p => p.id === form.dataset.editingId);
+                if (index !== -1) promotions[index] = data;
+                showMessage("Aktion lokal aktualisiert!");
+            } else {
+                promotions.push(data);
+                const preisText = data.noVerkaufspreis ? 'Preis a.A.' : `${parseFloat(data.verkaufspreis).toFixed(2)} €`;
+                changesLog.push(`✨ Neu aufgenommen: ${data.geraetebezeichnung} (${data.anbieter}) für ${preisText}`);
+                showMessage("Aktion lokal gespeichert!");
+            }
+            changesLog.forEach(log => addRecentChange(log));
+            saveData();
+            form.reset();
+            delete form.dataset.editingId;
+            document.getElementById('submit-btn').textContent = 'Aktion Speichern';
+            toggleFreeText(null);
+            togglePriceInput('EK', false);
+            togglePriceInput('VK', false);
+        };
+
+        window.deletePromotion = (id) => {
+            if (!confirm('Sind Sie sicher, dass Sie diese Aktion löschen möchten?')) return;
+            promotions = promotions.filter(p => p.id !== id);
+            saveData();
+            showMessage("Aktion gelöscht.");
+        };
+
+        window.renewPromotion = (id) => {
+            const index = promotions.findIndex(p => p.id === id);
+            if (index === -1) return;
+            const today = new Date();
+            const renewalDate = new Date(today);
+            renewalDate.setDate(renewalDate.getDate() + 30);
+            const yyyy = renewalDate.getFullYear();
+            const mm = String(renewalDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(renewalDate.getDate()).padStart(2, '0');
+            promotions[index].aktionsende = `${yyyy}-${mm}-${dd}`;
+            saveData();
+            showMessage(`Verlängert bis ${dd}.${mm}.${yyyy}!`);
+        };
+
+        window.editPromotion = (id) => {
+            const data = promotions.find(p => p.id === id);
+            if (!data) return;
+            const form = document.getElementById('promotion-form');
+            const provider = data.anbieter || '';
+            if (predefinedProviders.includes(provider) && provider !== 'Freiertext') {
+                form.anbieterSelect.value = provider;
+                form.anbieterFreiertext.value = '';
+                toggleFreeText(false);
+            } else {
+                form.anbieterSelect.value = 'Freiertext';
+                form.anbieterFreiertext.value = provider;
+                toggleFreeText(true);
+            }
+            form.geraetebezeichnung.value = data.geraetebezeichnung || '';
+            form.aktionsbeginn.value = data.aktionsbeginn || '';
+            form.aktionsende.value = data.aktionsende || '';
+            form.einkaufspreis.value = data.einkaufspreis || 0;
+            form.verkaufspreis.value = data.verkaufspreis || 0;
+            form.noEinkaufspreis.checked = !!data.noEinkaufspreis;
+            form.noVerkaufspreis.checked = !!data.noVerkaufspreis;
+            togglePriceInput('EK', !!data.noEinkaufspreis);
+            togglePriceInput('VK', !!data.noVerkaufspreis);
+            form.einmalzahlungXL.value = data.einmalzahlungXL || '';
+            form.einmalzahlungL.value = data.einmalzahlungL || '';
+            form.einmalzahlungM.value = data.einmalzahlungM || '';
+            form.einmalzahlungS.value = data.einmalzahlungS || '';
+            form.einmalzahlungHomeXL.value = data.einmalzahlungHomeXL || '';
+            form.einmalzahlungHomeL.value = data.einmalzahlungHomeL || '';
+            form.einmalzahlungHomeM.value = data.einmalzahlungHomeM || '';
+            form.einmalzahlungHomeS.value = data.einmalzahlungHomeS || '';
+            form.mobile.checked = data.mobile || false;
+            form.myhome.checked = data.myhome || false;
+            form.data.checked = data.data || false;
+            form.anschlussbefreiung.checked = data.anschlussbefreiung || false;
+            form.zusatzpush.checked = data.zusatzpush || false;
+            form.sonderprovision.value = data.sonderprovision || '';
+            form.bemerkung.value = data.bemerkung || '';
+            form.bildUrl.value = data.bildUrl || '';
+            form.hwBenefit24.value = data.hwBenefit24 || '';
+            form.hwBenefit36.value = data.hwBenefit36 || '';
+            form.dataset.editingId = id;
+            document.getElementById('submit-btn').textContent = 'Änderungen Speichern';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        // --- CRUD ACTIONS (INCENTIVES) ---
+        window.saveIncentive = (event) => {
+            event.preventDefault();
+            const form = event.target;
+            const data = {
+                id: form.dataset.editingId || generateId(),
+                titel: form.incentiveTitel.value,
+                incentiveStart: form.incentiveStart.value,
+                incentiveEnd: form.incentiveEnd.value,
+                bildUrl: form.incentiveBildUrl.value,
+                bemerkung: form.incentiveBemerkung.value,
+                priority: 1, 
+                createdAt: form.dataset.editingId ? (incentives.find(i => i.id === form.dataset.editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+            };
+            if(!form.dataset.editingId) addRecentChange(`⭐ Neues Incentive: ${data.titel}`);
+            if (form.dataset.editingId) {
+                const index = incentives.findIndex(i => i.id === form.dataset.editingId);
+                if (index !== -1) incentives[index] = data;
+                showMessage("Incentive aktualisiert!");
+            } else {
+                incentives.push(data);
+                showMessage("Incentive gespeichert!");
+            }
+            saveData();
+            form.reset();
+            delete form.dataset.editingId;
+            document.getElementById('incentive-submit-btn').textContent = 'Incentive Speichern';
+        };
+
+        window.deleteIncentive = (id) => {
+            if (!confirm('Löschen?')) return;
+            incentives = incentives.filter(i => i.id !== id);
+            saveData();
+            showMessage("Incentive gelöscht.");
+        };
+
+        window.editIncentive = (id) => {
+            const data = incentives.find(i => i.id === id);
+            if (!data) return;
+            const form = document.getElementById('incentive-form');
+            form.incentiveTitel.value = data.titel || '';
+            form.incentiveStart.value = data.incentiveStart || '';
+            form.incentiveEnd.value = data.incentiveEnd || '';
+            form.incentiveBildUrl.value = data.bildUrl || '';
+            form.incentiveBemerkung.value = data.bemerkung || '';
+            form.dataset.editingId = id;
+            document.getElementById('incentive-submit-btn').textContent = 'Änderungen Speichern';
+            document.getElementById('incentive-form').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        window.renewIncentive = (id) => {
+            const index = incentives.findIndex(i => i.id === id);
+            if (index === -1) return;
+            const today = new Date();
+            const renewalDate = new Date(today);
+            renewalDate.setDate(renewalDate.getDate() + 30);
+            const yyyy = renewalDate.getFullYear();
+            const mm = String(renewalDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(renewalDate.getDate()).padStart(2, '0');
+            incentives[index].incentiveEnd = `${yyyy}-${mm}-${dd}`;
+            saveData();
+            showMessage(`Incentive verlängert bis ${dd}.${mm}.${yyyy}!`);
+        };
+
+        // --- RENDERING ---
+        
+        function renderAdminPushList(list) {
+            const listEl = document.getElementById('admin-push-list');
+            if (list.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-400">Keine Push-Provisionen vorhanden.</p>'; return; }
+            listEl.innerHTML = list.map(p => {
+                const expired = isExpired(p.end);
+                const betragDisplay = p.betrag > 0 ? `${p.betrag.toFixed(2)} €` : 'Betrag n.A.';
+                return `
+                    <div class="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mb-3 border-l-4 ${expired ? 'border-red-500' : 'border-green-500'}">
+                        <div>
+                            <p class="text-lg font-semibold text-gray-800">Push: ${p.titel || 'Extra'} (${betragDisplay}) ${expired ? '<span class="text-red-500 text-xs font-bold">(ABGELAUFEN)</span>' : ''}</p>
+                            <p class="text-xs text-gray-400">Zeitraum: ${p.start} bis ${p.end}</p>
+                        </div>
+                        <div class="flex space-x-2 admin-controls">
+                            <button onclick='editPushProvision("${p.id}")' class="p-2 text-sm bg-yellow-500 text-white rounded-full hover:bg-yellow-600">Bearbeiten</button>
+                            <button onclick='deletePushProvision("${p.id}")' class="p-2 text-sm bg-red-500 text-white rounded-full hover:bg-red-600">Löschen</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAdminBundleList(list) {
+            const listEl = document.getElementById('admin-bundle-list');
+            const fixed = sortBundlesForUI((list || []).filter(b => !b.legacy));
+            const legacyCount = (list || []).filter(b => b.legacy).length;
+
+            const legacyHint = legacyCount > 0
+                ? `<div class="bg-yellow-50 border border-yellow-200 text-yellow-900 p-3 rounded-lg text-sm mb-4">⚠️ Hinweis: ${legacyCount} alte Bundle-Eintraege (Legacy) sind automatisch deaktiviert und werden nicht mehr genutzt.</div>`
+                : '';
+
+            if (fixed.length === 0) {
+                listEl.innerHTML = legacyHint + '<p class="text-center text-gray-400">Keine Bundle-Slots vorhanden.</p>';
+                return;
+            }
+
+            listEl.innerHTML = legacyHint + fixed.map(b => {
+                const expired = isExpired(b.end);
+                const statusPill = b.active
+                    ? `<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full border border-green-200 font-bold">AKTIV</span>`
+                    : `<span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full border border-gray-200 font-bold">INAKTIV</span>`;
+
+                const cat = b.categoryLabel || __getCategoryLabel(b.categoryKey);
+
+                return `
+                    <div class="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mb-3 border-l-4 ${expired ? 'border-red-500' : 'border-blue-800'}">
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <p class="text-lg font-bold text-blue-900">📦 ${b.titel || '(leer)'} ${expired ? '<span class="text-red-500 text-xs font-bold">(ABGELAUFEN)</span>' : ''}</p>
+                                ${statusPill}
+                                <span class="text-xs bg-blue-50 text-blue-800 px-2 py-1 rounded border border-blue-100">${cat}</span>
+                                <span class="text-xs bg-gray-50 text-gray-700 px-2 py-1 rounded border border-gray-100">ID: ${b.id}</span>
+                            </div>
+                            <p class="text-sm font-semibold text-gray-700">Tarif: ${b.tarifName || '-'} | Preis: ${b.angebotspreis || '-'} €</p>
+                            <p class="text-xs text-gray-400">Zeitraum: ${b.start || '-'} bis ${b.end || '-'}</p>
+                        </div>
+                        <div class="flex space-x-2 admin-controls items-center">
+                            <button onclick='copyBundleLink("${b.id}")' class="p-2 text-sm bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 border border-blue-200 flex items-center gap-1 font-semibold transition" title="Direktlink kopieren">🔗 Link</button>
+                            <button onclick='editBundle("${b.id}")' class="p-2 text-sm bg-yellow-500 text-white rounded-full hover:bg-yellow-600">Bearbeiten</button>
+                            <button onclick='toggleBundleActive("${b.id}")' class="p-2 text-sm ${b.active ? 'bg-gray-700 hover:bg-gray-800' : 'bg-green-600 hover:bg-green-700'} text-white rounded-full">${b.active ? 'Deaktivieren' : 'Aktivieren'}</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAdminPromotionList(list) {
+            const listEl = document.getElementById('admin-promotion-list');
+            if (list.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-400">Keine Aktionen gefunden.</p>'; return; }
+            listEl.innerHTML = list.map(p => {
+                const marge = calculateMargin(p.einkaufspreis, p.verkaufspreis, p.noEinkaufspreis, p.noVerkaufspreis);
+                const expired = isExpired(p.aktionsende); 
+                const einmalzahlungen = [
+                    p.einmalzahlungXL ? `XL: ${p.einmalzahlungXL}` : null,
+                    p.einmalzahlungL ? `L: ${p.einmalzahlungL}` : null,
+                    p.einmalzahlungM ? `M: ${p.einmalzahlungM}` : null,
+                    p.einmalzahlungS ? `S: ${p.einmalzahlungS}` : null
+                ].filter(Boolean).join(' | ');
+
+                let borderColor = 'border-gray-300';
+                if (expired) borderColor = 'border-red-500';
+                else if (marge === null) borderColor = 'border-blue-300'; 
+                else if (parseFloat(marge) >= 0) borderColor = 'border-green-500';
+                else borderColor = 'border-red-500';
+
+                const margeDisplay = marge !== null 
+                    ? `<span class="${parseFloat(marge) >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">${marge} €</span>` 
+                    : '<span class="text-gray-400">n.v.</span>';
+
+                const ekDisplay = p.noEinkaufspreis ? 'n.v.' : parseFloat(p.einkaufspreis).toFixed(2) + '€';
+                const vkDisplay = p.noVerkaufspreis ? 'n.v.' : parseFloat(p.verkaufspreis).toFixed(2) + '€';
+
+                return `
+                    <div class="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mb-3 border-l-4 ${borderColor}">
+                        <div>
+                            <p class="text-lg font-semibold text-gray-800">${p.geraetebezeichnung} (${p.anbieter}) ${expired ? '<span class="text-red-500 text-xs font-bold">(ABGELAUFEN)</span>' : ''}</p>
+                            <p class="text-sm text-gray-500">EK: ${ekDisplay} | VK: ${vkDisplay} | Marge (Netto): ${margeDisplay}</p>
+                            ${einmalzahlungen ? `<p class="text-xs text-gray-400">EZ Mobile: ${einmalzahlungen}</p>` : ''}
+                            <p class="text-xs text-gray-400">${p.aktionsbeginn} bis ${p.aktionsende}</p>
+                        </div>
+                        <div class="flex space-x-2 admin-controls">
+                            ${expired 
+                                ? `<button onclick='renewPromotion("${p.id}")' class="p-2 text-sm bg-purple-600 text-white rounded-full hover:bg-purple-700 transition duration-150">30 Tage Verlängern</button>`
+                                : `<button onclick='editPromotion("${p.id}")' class="p-2 text-sm bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition duration-150">Bearbeiten</button>`
+                            }
+                            <button onclick='deletePromotion("${p.id}")' class="p-2 text-sm bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150">Löschen</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAdminIncentiveList(list) {
+            const listEl = document.getElementById('admin-incentive-list');
+            if (list.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-400">Keine Incentives vorhanden.</p>'; return; }
+            listEl.innerHTML = list.map(p => {
+                const expired = isExpired(p.incentiveEnd);
+                return `
+                    <div class="bg-white p-4 rounded-lg shadow-md flex justify-between items-center mb-3 border-l-4 ${expired ? 'border-red-500' : 'border-blue-500'}">
+                        <div>
+                            <p class="text-lg font-semibold text-gray-800">${p.titel || 'Incentive'} ${expired ? '<span class="text-red-500 text-xs font-bold">(ABGELAUFEN)</span>' : ''}</p>
+                            <p class="text-sm text-gray-600 mb-1">${p.bemerkung.substring(0, 50)}${p.bemerkung.length > 50 ? '...' : ''}</p>
+                            <p class="text-xs text-gray-400">Laufzeit: ${p.incentiveStart} bis ${p.incentiveEnd}</p>
+                        </div>
+                        <div class="flex space-x-2 admin-controls">
+                            ${expired 
+                                ? `<button onclick='renewIncentive("${p.id}")' class="p-2 text-sm bg-purple-600 text-white rounded-full hover:bg-purple-700 transition duration-150">30 Tage Verlängern</button>`
+                                : `<button onclick='editIncentive("${p.id}")' class="p-2 text-sm bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition duration-150">Bearbeiten</button>`
+                            }
+                            <button onclick='deleteIncentive("${p.id}")' class="p-2 text-sm bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150">Löschen</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Updated function signature to accept isSingleMode flag
+        function renderUserView(promotionsList, incentivesList, pushList, bundlesList, isSingleMode = false) {
+            const tocContainerEl = document.getElementById('toc-container');
+            const viewEl = document.getElementById('user-view-content'); 
+            const incentiveListEl = document.getElementById('user-incentive-list');
+            const pushListEl = document.getElementById('user-push-list'); 
+            const bundleListEl = document.getElementById('user-bundle-list');
+            const bundleSectionHeader = document.getElementById('bundle-section-header');
+            
+            // --- Push Provisions ---
+            const activePush = pushList.filter(p => !isExpired(p.end));
+            if (activePush.length > 0) {
+                pushListEl.innerHTML = activePush.map(p => {
+                    const betragDisplay = p.betrag > 0 ? `${p.betrag.toFixed(2)} €` : 'N.A.';
+                    return `
+                        <div class="break-inside-avoid print-break-avoid bg-white rounded-lg shadow-xl p-4 border-l-8 border-green-500 flex items-start space-x-4 hover:shadow-2xl transition duration-300">
+                            <img src="https://placehold.co/100x100/22c55e/ffffff?text=%E2%82%AC" 
+                                 alt="Euro Zeichen" class="w-20 h-20 object-contain rounded-md shadow flex-shrink-0">
+                            <div class="flex-grow">
+                                <h4 class="text-xl font-bold text-green-700">💰 PUSH: ${p.titel || 'Extra'} (${betragDisplay})</h4>
+                                <p class="text-lg text-gray-800 font-semibold max-h-full">${p.bemerkung}</p>
+                                <span class="text-xs text-gray-500 mt-2 block">Gültig: ${p.start} - ${p.end}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                pushListEl.parentElement.classList.remove('hidden'); 
+            } else {
+                pushListEl.innerHTML = '';
+                pushListEl.parentElement.classList.add('hidden'); 
+            }
+
+            // --- Incentives ---
+            const activeIncentives = incentivesList.filter(p => !isExpired(p.incentiveEnd));
+            if (activeIncentives.length > 0) {
+                incentiveListEl.innerHTML = activeIncentives.map(i => `
+                    <div class="break-inside-avoid print-break-avoid bg-white rounded-lg shadow-xl p-4 border-l-4 border-purple-500 flex items-start space-x-4 hover:shadow-2xl transition duration-300">
+                        <img src="${i.bildUrl || 'https://placehold.co/80x80/8b5cf6/ffffff?text=Incentive'}" 
+                             onerror="this.onerror=null;this.src='https://placehold.co/80x80/8b5cf6/ffffff?text=Incentive';" 
+                             alt="Incentive Bild" class="w-20 h-20 object-contain bg-white border border-gray-100 rounded-md shadow flex-shrink-0">
+                        <div class="flex-grow">
+                            <h4 class="text-lg font-bold text-purple-700">⭐ ${i.titel || 'Incentive'}</h4>
+                            <p class="text-sm text-gray-700 max-h-full">${i.bemerkung}</p>
+                            <span class="text-xs text-gray-400 mt-1 block">Aktion: ${i.incentiveStart} - ${i.incentiveEnd}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                incentiveListEl.innerHTML = '<p class="text-center text-gray-500 italic mt-4 col-span-full">Keine aktuellen Incentives.</p>';
+            }
+
+            // --- BUNDLES (NEU) ---
+            // Fix: Use isSingleMode flag instead of checking length === 1
+            const activeBundles = isSingleMode ? bundlesList : bundlesList.filter(b => (b.active === true) && !b.legacy && !isExpired(b.end));
+            
+            if (activeBundles.length > 0) {
+                bundleListEl.innerHTML = activeBundles.map(b => {
+                    const imagesHtml = b.images && b.images.length > 0 
+                        ? `<div class="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-thin">
+                            ${b.images.map(img => `<img src="${img}" class="h-40 w-auto object-contain rounded-md border border-gray-200 shadow-sm" onerror="this.style.display='none'">`).join('')}
+                          </div>`
+                        : '';
+                    
+                    const badges = [
+                        b.optionOnlineSchutz ? `<span class="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-bold border border-green-200">🛡️ Inkl. Online Schutz</span>` : '',
+                        b.optionTV ? `<span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-bold border border-blue-200">📺 Inkl. o2 TV</span>` : '',
+                        b.optionCustom ? `<span class="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-bold border border-purple-200">➕ ${b.optionCustom}</span>` : ''
+                    ].filter(Boolean).join('');
+
+                    return `
+                        <div class="break-inside-avoid print-break-avoid bg-white rounded-xl shadow-2xl overflow-hidden border-2 border-blue-800 mb-8 transform hover:scale-[1.01] transition duration-300">
+                            <div class="bg-blue-900 p-4 text-white flex justify-between items-center">
+                                <h3 class="text-2xl font-bold flex items-center">
+                                    <span class="mr-2">📦</span> ${b.titel}
+                                </h3>
+                                <span class="text-xs bg-blue-700 px-2 py-1 rounded">Gültig bis: ${b.end}</span>
+                            </div>
+                            <div class="p-6 relative">
+                                <div class="flex flex-col md:flex-row justify-between items-start mb-4">
+                                    <div class="mb-4 md:mb-0">
+                                        <h4 class="text-xl font-bold text-gray-800 mb-1">${b.tarifName || 'Tarif nicht angegeben'}</h4>
+                                        <div class="flex gap-2 flex-wrap mt-2">${badges}</div>
+                                    </div>
+                                    ${b.angebotspreis ? `
+                                        <div class="bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg transform rotate-2 md:rotate-0">
+                                            <span class="block text-xs uppercase font-bold text-red-100 text-center">Angebotspreis</span>
+                                            <span class="block text-3xl font-extrabold">${b.angebotspreis} €</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+
+                                ${imagesHtml}
+                                
+                                <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-600 mb-4 mt-4">
+                                    <h4 class="font-bold text-blue-900 mb-2">Rechnungsweg / Buchungsprozess:</h4>
+                                    <div class="text-gray-800 text-sm whitespace-pre-line">${b.rechnungsweg}</div>
+                                </div>
+                                
+                                ${b.shopLink ? `
+                                <div class="mt-4 text-center">
+                                    <a href="${b.shopLink}" target="_blank" class="inline-block bg-green-600 text-white font-bold text-lg px-8 py-3 rounded-full shadow-lg hover:bg-green-700 hover:scale-105 transition transform flex items-center justify-center gap-2">
+                                        👉 Zum Angebot
+                                    </a>
+                                </div>
+                                ` : ''}
+
+                                ${b.gutscheincode ? `
+                                <div class="flex items-center gap-4 mt-4 pt-4 border-t border-gray-200">
+                                    <span class="text-sm font-bold text-gray-600">Gutscheincode:</span>
+                                    <code class="bg-gray-100 text-red-600 font-mono text-lg px-3 py-1 rounded border border-gray-300 cursor-pointer hover:bg-yellow-100 select-all" title="Klicken zum Kopieren" onclick="copyToClipboard('${b.gutscheincode}')">${b.gutscheincode}</code>
+                                    <span class="text-xs text-gray-400">(Klicken zum Kopieren)</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                if(bundleSectionHeader) bundleSectionHeader.classList.remove('hidden');
+                bundleListEl.classList.remove('hidden');
+            } else {
+                bundleListEl.innerHTML = '';
+                if(bundleSectionHeader) bundleSectionHeader.classList.add('hidden');
+                bundleListEl.classList.add('hidden');
+            }
+
+
+            // --- Promotions ---
+            const activePromotions = promotionsList.filter(p => !isExpired(p.aktionsende));
+            
+            // Fix: Check isSingleMode flag instead of length logic
+            if (isSingleMode) {
+                 // Do not render promotions in single view mode
+                 viewEl.innerHTML = '';
+                 tocContainerEl.innerHTML = '';
+                 return;
+            }
+
+            if (activePromotions.length === 0) {
+                viewEl.innerHTML = '<p class="text-center text-gray-500 mt-10 text-xl">Aktuell sind keine Geräte-Aktionen verfügbar.</p>';
+                tocContainerEl.innerHTML = ''; 
+                return;
+            }
+
+            const groupedPromotions = activePromotions.reduce((acc, p) => {
+                const anbieter = p.anbieter || 'Unbekannter Anbieter';
+                if (!acc[anbieter]) acc[anbieter] = [];
+                acc[anbieter].push(p);
+                return acc;
+            }, {});
+
+            const anbieterList = Object.keys(groupedPromotions).sort();
+
+            let tocHtml = '';
+            
+            // NEU: BUNDLE LINK IN TOC (WENN AKTIV und nicht Single View)
+            if (activeBundles.length > 0) {
+                tocHtml += `
+                <a href="#bundle-section-header" class="block p-3 bg-blue-100 hover:bg-blue-200 rounded-lg text-blue-900 font-bold border-2 border-blue-300 transition duration-150 shadow-sm hover:shadow-md text-center">
+                    📦 o2 Bundle Angebote (${activeBundles.length})
+                </a>`;
+            }
+
+            tocHtml += anbieterList.map(anbieter => {
+                const safeId = anbieter.replace(/[^a-zA-Z0-9]/g, '_');
+                return `<a href="#${safeId}" class="block p-3 bg-blue-50 hover:bg-blue-100 rounded-lg text-blue-700 font-medium transition duration-150 shadow-sm hover:shadow-md text-center">${anbieter} (${groupedPromotions[anbieter].length})</a>`;
+            }).join('');
+            
+            // Inhaltsverzeichnis (TOC)
+            tocContainerEl.innerHTML = `
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-8 break-inside-avoid print-break-avoid">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Inhaltsangabe: Anbieter-Übersicht</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        ${tocHtml}
+                    </div>
+                </div>
+            `;
+
+            let groupedPromotionsHtml = '';
+            anbieterList.forEach(anbieter => {
+                const safeId = anbieter.replace(/[^a-zA-Z0-9]/g, '_');
+                groupedPromotionsHtml += `
+                    <div id="${safeId}" class="mt-10 pt-4 border-t-2 border-blue-600 break-after-avoid print-break-avoid">
+                        <h3 class="text-3xl font-extrabold text-blue-800 mb-6">${anbieter} Aktionen</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+                `;
+                
+                groupedPromotions[anbieter].forEach((p, index) => {
+                    const marge = calculateMargin(p.einkaufspreis, p.verkaufspreis, p.noEinkaufspreis, p.noVerkaufspreis);
+                    const tariffs = [ p.mobile ? 'Mobilfunk-Tarife' : '', p.myhome ? 'Festnetz-Tarife' : '', p.data ? 'Datentarife' : '' ].filter(Boolean);
+                    const hasHomeEz = p.einmalzahlungHomeXL || p.einmalzahlungHomeL || p.einmalzahlungHomeM || p.einmalzahlungHomeS;
+                    const pageBreakClass = (index > 0 && (index + 1) % 3 === 0 && index !== (groupedPromotions[anbieter].length - 1)) ? 'page-break-after-3' : '';
+
+                    groupedPromotionsHtml += `
+                        <div class="break-inside-avoid print-break-avoid bg-white rounded-xl shadow-2xl overflow-hidden hover:shadow-3xl transform hover:-translate-y-1 transition duration-300 ${pageBreakClass}">
+                            <div class="relative h-48 bg-white flex items-center justify-center p-4">
+                                <img src="${p.bildUrl || 'https://placehold.co/400x200/2563eb/ffffff?text=Bild+Fehlt'}" 
+                                     onerror="this.onerror=null;this.src='https://placehold.co/400x200/2563eb/ffffff?text=Bild+Fehlt';" 
+                                     alt="${p.geraetebezeichnung}" class="w-full h-full object-contain">
+                                ${!p.noVerkaufspreis ? `<div class="absolute top-3 right-3 bg-red-600 text-white text-xs font-bold py-1 px-3 rounded-full shadow-lg">Verkaufspreis: ${parseFloat(p.verkaufspreis).toFixed(2)} €</div>` : ''}
+                            </div>
+                            <div class="p-5">
+                                <h2 class="text-2xl font-extrabold text-gray-900 mb-1">${p.geraetebezeichnung}</h2>
+                                <p class="text-sm font-medium text-blue-600 mb-3">${p.anbieter}</p>
+                                <div class="flex items-center text-sm text-gray-500 mb-4"><span>Aktion: ${p.aktionsbeginn} - ${p.aktionsende}</span></div>
+                                <div class="flex flex-wrap gap-2 mb-4">${tariffs.map(t => `<span class="px-3 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">${t}</span>`).join('')}</div>
+                                <div class="space-y-2 mb-4">
+                                    ${p.anschlussbefreiung ? '<span class="flex items-center text-sm text-green-700 font-medium">✅ Anschlussbefreiung</span>' : ''}
+                                    ${p.zusatzpush ? '<span class="flex items-center text-sm text-purple-700 font-medium">⚡ Zusätzlicher Push</span>' : ''}
+                                    ${p.sonderprovision ? `<span class="flex items-center text-sm text-yellow-700 font-medium">💰 Sonderprovision: ${p.sonderprovision}</span>` : ''}
+                                </div>
+                                <div class="mt-4 space-y-2 border-t pt-4">
+                                    <p class="text-xs font-semibold text-gray-700">Hardware Benefits:</p>
+                                    ${p.hwBenefit24 ? `<a href="${p.hwBenefit24}" target="_blank" class="block text-sm text-blue-500 hover:text-blue-700 truncate">24 Monate Details</a>` : ''}
+                                    ${p.hwBenefit36 ? `<a href="${p.hwBenefit36}" target="_blank" class="block text-sm text-blue-500 hover:text-blue-700 truncate">36 Monate Details</a>` : ''}
+                                </div>
+                                ${p.bemerkung ? `<div class="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-700 italic">${p.bemerkung}</div>` : ''}
+                                <div class="mt-5 pt-3 border-t">
+                                    <p class="text-xs font-semibold text-gray-700 mb-1">Einmalzahlung o2 Mobile (Kunde):</p>
+                                    <div class="text-xs text-gray-500 grid grid-cols-2 gap-1">
+                                        ${p.einmalzahlungXL ? `<span><span class="font-bold">XL:</span> ${p.einmalzahlungXL}</span>` : ''}
+                                        ${p.einmalzahlungL ? `<span><span class="font-bold">L:</span> ${p.einmalzahlungL}</span>` : ''}
+                                        ${p.einmalzahlungM ? `<span><span class="font-bold">M:</span> ${p.einmalzahlungM}</span>` : ''}
+                                        ${p.einmalzahlungS ? `<span><span class="font-bold">S:</span> ${p.einmalzahlungS}</span>` : ''}
+                                    </div>
+                                    ${hasHomeEz ? `
+                                        <p class="text-xs font-semibold text-gray-700 mb-1 mt-2">Einmalzahlung o2 My Home (Kunde):</p>
+                                        <div class="text-xs text-gray-500 grid grid-cols-2 gap-1">
+                                            ${p.einmalzahlungHomeXL ? `<span><span class="font-bold">XL:</span> ${p.einmalzahlungHomeXL}</span>` : ''}
+                                            ${p.einmalzahlungHomeL ? `<span><span class="font-bold">L:</span> ${p.einmalzahlungHomeL}</span>` : ''}
+                                            ${p.einmalzahlungHomeM ? `<span><span class="font-bold">M:</span> ${p.einmalzahlungHomeM}</span>` : ''}
+                                            ${p.einmalzahlungHomeS ? `<span><span class="font-bold">S:</span> ${p.einmalzahlungHomeS}</span>` : ''}
+                                        </div>
+                                    ` : ''}
+                                    <p class="text-xs text-gray-500 mt-2 pt-2 border-t">EK: ${p.noEinkaufspreis ? 'n.v.' : parseFloat(p.einkaufspreis).toFixed(2) + ' €'}</p>
+                                    <p class="text-md font-bold text-gray-800">Marge (Netto): ${marge !== null ? `<span class="${parseFloat(marge) >= 0 ? 'text-green-600' : 'text-red-600'}">${marge} €</span>` : '<span class="text-gray-400">n.v.</span>'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }); 
+                groupedPromotionsHtml += `</div>`;
+            }); 
+            viewEl.innerHTML = groupedPromotionsHtml;
+        }
+
+        window.switchView = () => {
+            const isAdmin = document.getElementById('view-toggle').checked;
+            document.getElementById('admin-view').classList.toggle('hidden', !isAdmin);
+            document.getElementById('user-view').classList.toggle('hidden', isAdmin);
+            document.getElementById('view-name').textContent = isAdmin ? 'Admin-Ansicht' : 'Kunden-Ansicht';
+            
+            // NEU: Update Button Logik
+            const emailBtn = document.getElementById('email-update-btn');
+            if(emailBtn) {
+                if(isAdmin) emailBtn.classList.remove('hidden');
+                else emailBtn.classList.add('hidden');
+            }
+        };
+
+        window.toggleFreeText = (manualOverride) => {
+            const selectEl = document.getElementById('anbieterSelect');
+            const freitextContainer = document.getElementById('anbieter-freitext-container');
+            let isFreeTextSelected;
+            if (manualOverride !== null) { isFreeTextSelected = manualOverride; } else { isFreeTextSelected = selectEl.value === 'Freiertext'; }
+            freitextContainer.classList.toggle('hidden', !isFreeTextSelected);
+            const freitextInput = document.getElementById('anbieterFreiertext');
+            if (isFreeTextSelected) { freitextInput.setAttribute('required', 'required'); } else { freitextInput.removeAttribute('required'); freitextInput.value = ''; }
+        };
+
+        // --- INIT ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            trackAndDisplayVisits();
+            switchView(); 
+            toggleFreeText(false); 
+            // Initialize one empty image field for bundle form
+            addBundleImageField(); 
+            populateBundleSlotOptions();
+
+            
+            const today = new Date();
+            const dateStr = today.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const printTitleEl = document.getElementById('print-header-title');
+            if(printTitleEl) { printTitleEl.textContent = `Aktionsmappe ${dateStr}`; }
+            const einkaufEl = document.getElementById('einkaufspreis');
+            const verkaufEl = document.getElementById('verkaufspreis');
+            const margePreviewEl = document.getElementById('marge-preview');
+            const updateMarginPreview = () => {
+                if (einkaufEl.disabled || verkaufEl.disabled) {
+                    margePreviewEl.textContent = 'Marge: -';
+                    margePreviewEl.className = 'text-gray-400 font-semibold text-lg';
+                    return;
+                }
+                const marge = calculateMargin(einkaufEl.value, verkaufEl.value, false, false);
+                margePreviewEl.textContent = `Vorschau Marge (Netto): ${marge} €`;
+                margePreviewEl.className = `font-semibold ${parseFloat(marge) >= 0 ? 'text-green-600' : 'text-red-600'}`;
+            };
+            einkaufEl.addEventListener('input', updateMarginPreview);
+            verkaufEl.addEventListener('input', updateMarginPreview);
+            updateMarginPreview(); 
+
+            window.addEventListener('storage', (e) => {
+                if ([STORAGE_KEY_PROMOTIONS, STORAGE_KEY_INCENTIVES, STORAGE_KEY_VISITS, STORAGE_KEY_PUSH, STORAGE_KEY_BUNDLES, STORAGE_KEY_PDF].includes(e.key)) {
+                    loadData();
+                }
+            });
+            const currencyInputs = ['einmalzahlungXL', 'einmalzahlungL', 'einmalzahlungM', 'einmalzahlungS', 'einmalzahlungHomeXL', 'einmalzahlungHomeL', 'einmalzahlungHomeM', 'einmalzahlungHomeS', 'sonderprovision'];
+            currencyInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.addEventListener('blur', () => formatCurrencyInput(el)); }
+            });
+        });
+    </script>
+</head>
+<body class="min-h-screen">
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <!-- Header und View Switch -->
+        <header class="bg-white shadow-xl rounded-xl p-5 mb-8 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 no-print-shadow">
+            
+            <!-- LOGO UND TITEL CONTAINER -->
+            <div class="flex items-center header-content mb-4 md:mb-0">
+                <!-- HeTec GmbH LOGO -->
+                <div class="hetec-logo text-blue-700 font-extrabold text-xl mr-4 tracking-wider">
+                    HeTec GmbH
+                </div>
+                
+                <!-- NEU: DYNAMISCHER TITEL FÜR DRUCK -->
+                <h1 class="text-3xl font-extrabold text-gray-900">
+                    <span class="screen-only-text">Aktionsmappen-Dashboard</span>
+                    <span id="print-header-title" class="print-only-text">Aktionsmappe</span>
+                    <span class="text-sm font-normal text-gray-500 screen-only-text">(Lokal)</span>
+                </h1>
+            </div>
+
+            <div class="flex items-center space-x-6">
+                <!-- PDF / DRUCKEN BUTTON -->
+                <button onclick="exportToPdf()" class="flex items-center space-x-2 bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg transition shadow">
+                    <span>🖨️ PDF / Drucken</span>
+                </button>
+
+                <!-- NEU: EMAIL UPDATE BUTTON (Jetzt Standardmäßig hidden) -->
+                <button id="email-update-btn" onclick="sendUpdateEmail()" class="hidden relative flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition shadow">
+                    <span>✉️ Update-Mail senden</span>
+                    <!-- Badge für Anzahl der Änderungen -->
+                    <span id="email-badge" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full hidden">0</span>
+                </button>
+
+                <div class="flex items-center space-x-3">
+                    <label id="view-name" class="text-lg font-medium text-gray-700" for="view-toggle">Kunden-Ansicht</label>
+                    <label for="view-toggle" class="relative inline-block w-14 h-8 cursor-pointer toggle-switch">
+                        <input type="checkbox" id="view-toggle" class="opacity-0 w-0 h-0" onchange="switchView()">
+                        <span class="slider absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-300 rounded-full transition duration-400 before:absolute before:content-[''] before:h-6 before:w-6 before:left-1 before:bottom-1 before:bg-white before:rounded-full before:transition before:duration-400"></span>
+                    </label>
+                </div>
+            </div>
+        </header>
+
+        <!-- Statusmeldung -->
+        <div id="status-message" class="hidden text-center"></div>
+
+        <!-- 1. ADMIN-ANSICHT -->
+        <section id="admin-view" class="space-y-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">Admin-Bereich: Verwaltung (Lokal)</h2>
+            
+            <!-- Besuchszähler Anzeige -->
+            <div id="visit-counter-display" class="text-lg font-bold text-gray-600 p-3 bg-yellow-50 rounded-lg shadow-sm">
+                Besuche diesen Monat: Lade...
+            </div>
+            
+            <!-- PUSH PROVISION VERWALTUNG (NEU GANZ OBEN) -->
+            <div class="space-y-6 pt-2 pb-6 border-b-2 border-green-300 bg-green-50 rounded-lg p-4">
+                <h3 class="text-xl font-bold text-green-700 flex items-center">
+                    💰 Push Provision Verwaltung
+                </h3>
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-green-200">
+                    <form id="push-form" onsubmit="savePushProvision(event)" data-editing-id="">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- NEU: Titel / Bezeichnung -->
+                            <div class="md:col-span-2">
+                                <label for="pushTitel" class="block text-sm font-medium text-gray-700">Titel / Bezeichnung der Provision</label>
+                                <input type="text" id="pushTitel" name="pushTitel" placeholder="z.B. Black Friday Push" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required>
+                            </div>
+                            
+                            <!-- NEU: Betrag -->
+                            <div>
+                                <label for="pushBetrag" class="block text-sm font-medium text-gray-700">Betrag (€, numerisch)</label>
+                                <input type="number" step="0.01" id="pushBetrag" name="pushBetrag" placeholder="z.B. 30.00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required>
+                            </div>
+
+                            <!-- Start / Ende -->
+                            <div>
+                                <label for="pushStart" class="block text-sm font-medium text-gray-700">Push Start</label>
+                                <input type="date" id="pushStart" name="pushStart" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            <div>
+                                <label for="pushEnd" class="block text-sm font-medium text-gray-700">Push Ende</label>
+                                <input type="date" id="pushEnd" name="pushEnd" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            
+                            <!-- Bemerkungsfeld -->
+                            <div class="md:col-span-2">
+                                <label for="pushBemerkung" class="block text-sm font-medium text-gray-700">Bemerkung (Was gibt es extra?)</label>
+                                <textarea id="pushBemerkung" name="pushBemerkung" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required></textarea>
+                            </div>
+
+                        </div>
+                        <div class="mt-6">
+                            <button id="push-submit-btn" type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none transition duration-150">
+                                Push Speichern
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <h4 class="text-lg font-bold text-gray-800">Aktuelle Push-Provisionen</h4>
+                <div id="admin-push-list" class="space-y-4">
+                    <div class="text-center text-gray-500 p-4">Lade Push Provisionen...</div>
+                </div>
+            </div>
+
+            <!-- BUNDLE VERWALTUNG (NEU) -->
+            <div class="space-y-6 pt-6 border-b-2 border-blue-900 bg-blue-50 rounded-lg p-4">
+                <h3 class="text-xl font-bold text-blue-900 flex items-center">
+                    📦 o2 Bundle Angebote Verwaltung
+                </h3>
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-blue-200">
+                    <form id="bundle-form" onsubmit="saveBundle(event)" data-editing-id="">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- SLOT AUSWAHL (FIXED) -->
+                            <div class="md:col-span-2">
+                                <label for="bundleSlot" class="block text-sm font-medium text-gray-700">Canvas / Slot (fester Link)</label>
+                                <select id="bundleSlot" name="bundleSlot" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"></select>
+                                <p class="text-xs text-gray-500 mt-1">Diese Slot-ID bleibt immer gleich (Link bleibt stabil). Loeschen ist deaktiviert - nur aktiv/deaktiv.</p>
+                            </div>
+
+                            <!-- Aktiv / Deaktiv -->
+                            <div class="md:col-span-2">
+                                <label class="flex items-center gap-2 cursor-pointer bg-gray-50 p-3 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
+                                    <input type="checkbox" id="bundleActive" name="bundleActive" class="h-4 w-4 text-blue-600 rounded" checked>
+                                    <span class="text-sm font-semibold text-gray-800">🟢 Angebot aktiv (wird beworben)</span>
+                                </label>
+                            </div>
+
+                            <!-- Titel -->
+                            <div class="md:col-span-2">
+                                <label for="bundleTitel" class="block text-sm font-medium text-gray-700">Bundle Bezeichnung / Titel</label>
+                                <input type="text" id="bundleTitel" name="bundleTitel" placeholder="z.B. o2 Mobile M + iPhone 16 Pro + TV" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required>
+                            </div>
+                            
+                            <!-- NEU: Tarif Name & Angebotspreis -->
+                            <div>
+                                <label for="bundleTarifName" class="block text-sm font-medium text-gray-700">Tarif Name (z.B. o2 Mobile M)</label>
+                                <input type="text" id="bundleTarifName" name="bundleTarifName" placeholder="o2 Mobile M" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            <div>
+                                <label for="bundlePreis" class="block text-sm font-medium text-gray-700">Angebotspreis (€)</label>
+                                <input type="text" id="bundlePreis" name="bundlePreis" placeholder="49.99" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border font-bold text-blue-900">
+                            </div>
+
+                            <!-- NEU: Optionen -->
+                            <div class="md:col-span-2 space-y-2 mt-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Enthaltene Optionen (Badge-Anzeige):</label>
+                                <div class="flex flex-wrap gap-4 items-center">
+                                    <label class="flex items-center space-x-2 cursor-pointer bg-white p-2 rounded border hover:bg-gray-50 transition">
+                                        <input type="checkbox" id="bundleOptionOnlineSchutz" name="bundleOptionOnlineSchutz" class="h-4 w-4 text-blue-600 rounded">
+                                        <span class="text-sm font-medium">🛡️ Inkl. Online Schutz</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 cursor-pointer bg-white p-2 rounded border hover:bg-gray-50 transition">
+                                        <input type="checkbox" id="bundleOptionTV" name="bundleOptionTV" class="h-4 w-4 text-blue-600 rounded">
+                                        <span class="text-sm font-medium">📺 Inkl. o2 TV</span>
+                                    </label>
+                                    <div class="flex-grow">
+                                        <input type="text" id="bundleOptionCustom" name="bundleOptionCustom" placeholder="Weitere Option (z.B. Netflix, Napster...)" class="block w-full text-sm rounded-md border-gray-300 shadow-sm p-2 border">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bilder -->
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Bild-URLs</label>
+                                <div id="bundle-images-container" class="space-y-2 mb-2">
+                                    <!-- Hier werden die Input Felder dynamisch eingefügt -->
+                                </div>
+                                <button type="button" onclick="addBundleImageField()" class="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition font-medium">
+                                    + Weiteres Bild hinzufügen
+                                </button>
+                            </div>
+
+                            <!-- NEU: Shop Link -->
+                            <div class="md:col-span-2">
+                                <label for="bundleShopLink" class="block text-sm font-medium text-gray-700">Externer Link / Shop-Link (Optional)</label>
+                                <input type="url" id="bundleShopLink" name="bundleShopLink" placeholder="https://mein-shop.de/angebot-xyz" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                <p class="text-xs text-gray-500 mt-1">Wenn ausgefüllt, erscheint ein "Zum Angebot" Button beim Kunden.</p>
+                            </div>
+
+                            <!-- Gutschein -->
+                            <div>
+                                <label for="bundleGutschein" class="block text-sm font-medium text-gray-700">Gutscheincode</label>
+                                <input type="text" id="bundleGutschein" name="bundleGutschein" placeholder="z.B. SOMMER25" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+
+                            <!-- Rechnungsweg / Erklärung -->
+                            <div class="md:col-span-2">
+                                <label for="bundleRechnungsweg" class="block text-sm font-medium text-gray-700">Rechnungsweg & Buchungsprozess (Erklärung)</label>
+                                <textarea id="bundleRechnungsweg" name="bundleRechnungsweg" rows="4" placeholder="Buchungsprozess: Einzahlung 100€ in Kasse..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required></textarea>
+                            </div>
+
+                            <!-- Start / Ende -->
+                            <div>
+                                <label for="bundleStart" class="block text-sm font-medium text-gray-700">Startdatum</label>
+                                <input type="date" id="bundleStart" name="bundleStart" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            <div>
+                                <label for="bundleEnd" class="block text-sm font-medium text-gray-700">Enddatum</label>
+                                <input type="date" id="bundleEnd" name="bundleEnd" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <button id="bundle-submit-btn" type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-800 hover:bg-blue-900 focus:outline-none transition duration-150">
+                                Bundle Speichern
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <h4 class="text-lg font-bold text-gray-800">Aktuelle Bundles</h4>
+                <div id="admin-bundle-list" class="space-y-4">
+                    <div class="text-center text-gray-500 p-4">Lade Bundles...</div>
+                </div>
+            </div>
+            
+            
+            <!-- PROMOTIONS VERWALTUNG (Jetzt oben) -->
+            <h3 class="text-xl font-bold text-blue-600 pt-6 border-t border-gray-300">Geräte-Aktionseingabe</h3>
+
+            <!-- Eingabeformular -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <form id="promotion-form" onsubmit="savePromotion(event)" data-editing-id="">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        
+                        <!-- 1. Allgemeine Daten -->
+                        <div class="col-span-3 border-b pb-4 mb-4">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Basisdaten</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                
+                                <!-- Anbieter Dropdown -->
+                                <div>
+                                    <label for="anbieterSelect" class="block text-sm font-medium text-gray-700">Anbieter (Auswahl)</label>
+                                    <select id="anbieterSelect" name="anbieterSelect" required onchange="toggleFreeText(null)" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border bg-white">
+                                        <option value="" disabled selected>Wählen Sie einen Anbieter...</option>
+                                        <option value="o2">o2</option>
+                                        <option value="HeTec">HeTec</option>
+                                        <option value="GreenMnky">GreenMnky</option>
+                                        <option value="Freiertext">Andere / Freier Text</option>
+                                    </select>
+                                </div>
+
+                                <!-- Freitextfeld (optional) -->
+                                <div id="anbieter-freitext-container" class="hidden">
+                                    <label for="anbieterFreiertext" class="block text-sm font-medium text-gray-700">Anbieter (Freier Text)</label>
+                                    <input type="text" id="anbieterFreiertext" name="anbieterFreiertext" placeholder="Geben Sie den Anbieternamen ein" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                
+                                <div>
+                                    <label for="geraetebezeichnung" class="block text-sm font-medium text-gray-700">Gerätebezeichnung</label>
+                                    <input type="text" id="geraetebezeichnung" name="geraetebezeichnung" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                <div>
+                                    <label for="aktionsbeginn" class="block text-sm font-medium text-gray-700">Aktionsbeginn</label>
+                                    <input type="date" id="aktionsbeginn" name="aktionsbeginn" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                <div>
+                                    <label for="aktionsende" class="block text-sm font-medium text-gray-700">Aktionsende</label>
+                                    <input type="date" id="aktionsende" name="aktionsende" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Preis- und Margendaten -->
+                        <div class="col-span-3 border-b pb-4 mb-4">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Preise & Marge</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                
+                                <!-- EINKAUFSPREIS MIT CHECKBOX -->
+                                <div>
+                                    <label for="einkaufspreis" class="block text-sm font-medium text-gray-700">Einkaufspreis (€)</label>
+                                    <div class="mt-1 flex items-center gap-2">
+                                        <input type="number" step="0.01" id="einkaufspreis" name="einkaufspreis" required class="block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                        <div class="flex flex-col items-center">
+                                            <input type="checkbox" id="noEinkaufspreis" name="noEinkaufspreis" onchange="togglePriceInput('EK', this.checked)" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                            <label for="noEinkaufspreis" class="text-[10px] text-gray-500">n.v.</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- VERKAUFSPREIS MIT CHECKBOX -->
+                                <div>
+                                    <label for="verkaufspreis" class="block text-sm font-medium text-gray-700">Verkaufspreis (€)</label>
+                                    <div class="mt-1 flex items-center gap-2">
+                                        <input type="number" step="0.01" id="verkaufspreis" name="verkaufspreis" required class="block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                        <div class="flex flex-col items-center">
+                                            <input type="checkbox" id="noVerkaufspreis" name="noVerkaufspreis" onchange="togglePriceInput('VK', this.checked)" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                            <label for="noVerkaufspreis" class="text-[10px] text-gray-500">n.v.</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-end">
+                                    <p id="marge-preview" class="font-semibold text-lg"></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Strukturierte Einmalzahlung Mobile -->
+                            <div class="mt-4 col-span-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Einmalzahlung (o2 Mobile XL/L/M/S)</label>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <label for="einmalzahlungXL" class="block text-xs font-medium text-gray-500">XL (€)</label>
+                                        <input type="text" id="einmalzahlungXL" name="einmalzahlungXL" placeholder="z.B. 1€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungL" class="block text-xs font-medium text-gray-500">L (€)</label>
+                                        <input type="text" id="einmalzahlungL" name="einmalzahlungL" placeholder="z.B. 29,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungM" class="block text-xs font-medium text-gray-500">M (€)</label>
+                                        <input type="text" id="einmalzahlungM" name="einmalzahlungM" placeholder="z.B. 49,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungS" class="block text-xs font-medium text-gray-500">S (€)</label>
+                                        <input type="text" id="einmalzahlungS" name="einmalzahlungS" placeholder="z.B. 99,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Strukturierte Einmalzahlung Home -->
+                            <div class="mt-4 col-span-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Einmalzahlung (o2 My Home XL/L/M/S)</label>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <label for="einmalzahlungHomeXL" class="block text-xs font-medium text-gray-500">Home XL (€)</label>
+                                        <input type="text" id="einmalzahlungHomeXL" name="einmalzahlungHomeXL" placeholder="z.B. 1€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungHomeL" class="block text-xs font-medium text-gray-500">Home L (€)</label>
+                                        <input type="text" id="einmalzahlungHomeL" name="einmalzahlungHomeL" placeholder="z.b. 29,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungHomeM" class="block text-xs font-medium text-gray-500">Home M (€)</label>
+                                        <input type="text" id="einmalzahlungHomeM" name="einmalzahlungHomeM" placeholder="z.B. 49,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="einmalzahlungHomeS" class="block text-xs font-medium text-gray-500">Home S (€)</label>
+                                        <input type="text" id="einmalzahlungHomeS" name="einmalzahlungHomeS" placeholder="z.B. 99,99€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border text-sm">
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- 3. Tarif-Gültigkeit -->
+                        <div class="col-span-3 border-b pb-4 mb-4">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Tarif-Gültigkeit</h3>
+                            <div class="flex flex-wrap gap-6">
+                                <div class="flex items-center">
+                                    <input id="mobile" name="mobile" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                    <label for="mobile" class="ml-2 block text-sm text-gray-700">o2 Mobile (XL/L/M/S)</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="myhome" name="myhome" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                    <label for="myhome" class="ml-2 block text-sm text-gray-700">o2 My Home (XL/L/M/S)</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="data" name="data" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                    <label for="data" class="ml-2 block text-sm text-gray-700">o2 Data (XL/L/M)</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4. Sonstiges -->
+                        <div class="col-span-3 border-b pb-4 mb-4">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Zusätzliche Infos</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="flex items-center">
+                                    <input id="anschlussbefreiung" name="anschlussbefreiung" type="checkbox" class="h-4 w-4 text-pink-600 border-gray-300 rounded">
+                                    <label for="anschlussbefreiung" class="ml-2 block text-sm text-gray-700">Anschlusspreisbefreiung</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="zusatzpush" name="zusatzpush" type="checkbox" class="h-4 w-4 text-pink-600 border-gray-300 rounded">
+                                    <label for="zusatzpush" class="ml-2 block text-sm text-gray-700">Zusätzlichen Push</label>
+                                </div>
+                                <div>
+                                    <label for="sonderprovision" class="block text-sm font-medium text-gray-700">Sonderprovision</label>
+                                    <input type="text" id="sonderprovision" name="sonderprovision" placeholder="z.B. +50€" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <label for="bemerkung" class="block text-sm font-medium text-gray-700">Bemerkungsfeld</label>
+                                <textarea id="bemerkung" name="bemerkung" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- 5. Bild und Links -->
+                        <div class="col-span-3">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Bilder & Benefits (URLs)</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="bildUrl" class="block text-sm font-medium text-gray-700">Bild URL (Gerät)</label>
+                                    <input type="url" id="bildUrl" name="bildUrl" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                <div>
+                                    <label for="hwBenefit24" class="block text-sm font-medium text-gray-700">HW Benefit 24 Monate (Link)</label>
+                                    <input type="url" id="hwBenefit24" name="hwBenefit24" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                                <div>
+                                    <label for="hwBenefit36" class="block text-sm font-medium text-gray-700">HW Benefit 36 Monate (Link)</label>
+                                    <input type="url" id="hwBenefit36" name="hwBenefit36" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                    
+                    <!-- Speichern Button -->
+                    <div class="mt-8">
+                        <button id="submit-btn" type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-700 hover:bg-blue-800 focus:outline-none transition duration-150">
+                            Aktion Speichern
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2 mt-10">Verwaltung bestehender Geräte-Aktionen</h2>
+            
+            <!-- Filter und Suchfeld -->
+            <div id="admin-search-container" class="mb-4">
+                <input type="text" id="admin-search" placeholder="Suche nach Gerät oder Anbieter..." class="w-full p-2 border rounded shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" oninput="filterAdminPromotions()">
+            </div>
+            
+            <!-- Liste der Aktionen -->
+            <div id="admin-promotion-list" class="space-y-4">
+                <div class="text-center text-gray-500 p-4">Lade Aktionen...</div>
+            </div>
+
+            <!-- PDF Upload Section -->
+            <div id="pdf-upload-section" class="mt-12 pt-6 border-t-2 border-gray-300">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">PDF Aktionsübersicht verwalten</h3>
+                <div class="bg-white p-6 rounded-xl shadow-lg flex items-center justify-between">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Aktuelle o2 Übersicht hochladen (PDF)</label>
+                        <input type="file" id="pdf-upload-input" accept="application/pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="handlePdfUpload(event)">
+                        <p id="pdf-status-label" class="text-xs text-gray-500 mt-2">Kein PDF ausgewählt</p>
+                    </div>
+                    <button onclick="deletePdf()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600">PDF Löschen</button>
+                </div>
+                <!-- Admin Vorschau -->
+                <div id="admin-pdf-preview" class="mt-6"></div>
+            </div>
+            
+            <!-- DATEN BACKUP SECTION (NEU) -->
+            <div id="data-backup-section" class="mt-12 pt-6 border-t-2 border-gray-300">
+                <h3 class="text-xl font-bold text-yellow-600 mb-4">💾 Daten-Backup & Wiederherstellung</h3>
+                <div class="bg-white p-6 rounded-xl shadow-lg space-y-4">
+                    <!-- Export -->
+                    <div class="flex justify-between items-center">
+                        <p class="text-sm text-gray-700">Sichern Sie alle eingegebenen Aktionen als JSON-Datei.</p>
+                        <button onclick="exportData()" class="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-yellow-600 transition">
+                            Daten exportieren (JSON)
+                        </button>
+                    </div>
+                    
+                    <!-- Import -->
+                    <div class="border-t pt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
+                        <label class="block text-sm font-medium text-gray-700">Daten wiederherstellen (Import)</label>
+                        <input type="file" id="import-input" accept="application/json" class="block w-full sm:w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" onchange="importData(event)">
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- INCENTIVES VERWALTUNG (Jetzt unten) -->
+            <div class="space-y-6 pt-10 border-t-2 border-gray-300 mt-12">
+                <h3 class="text-xl font-bold text-purple-700">Incentive Verwaltung</h3>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <form id="incentive-form" onsubmit="saveIncentive(event)" data-editing-id="">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Titel (NEU) -->
+                            <div class="md:col-span-2">
+                                <label for="incentiveTitel" class="block text-sm font-medium text-gray-700">Titel / Bezeichnung</label>
+                                <input type="text" id="incentiveTitel" name="incentiveTitel" placeholder="z.B. Xiaomi Watch Aktion" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required>
+                            </div>
+
+                            <!-- Start / Ende -->
+                            <div>
+                                <label for="incentiveStart" class="block text-sm font-medium text-gray-700">Incentive Start</label>
+                                <input type="date" id="incentiveStart" name="incentiveStart" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            <div>
+                                <label for="incentiveEnd" class="block text-sm font-medium text-gray-700">Incentive Ende</label>
+                                <input type="date" id="incentiveEnd" name="incentiveEnd" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            
+                            <!-- Bild Link (Prio entfernt) -->
+                            <div class="md:col-span-2">
+                                <label for="incentiveBildUrl" class="block text-sm font-medium text-gray-700">Bild URL</label>
+                                <input type="url" id="incentiveBildUrl" name="incentiveBildUrl" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            </div>
+                            
+                            <!-- Bemerkungsfeld -->
+                            <div class="md:col-span-2">
+                                <label for="incentiveBemerkung" class="block text-sm font-medium text-gray-700">Bemerkung</label>
+                                <textarea id="incentiveBemerkung" name="incentiveBemerkung" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" required></textarea>
+                            </div>
+
+                        </div>
+                        <div class="mt-6">
+                            <button id="incentive-submit-btn" type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-purple-700 hover:bg-purple-800 focus:outline-none transition duration-150">
+                                Incentive Speichern
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <h4 class="text-lg font-bold text-gray-800">Bestehende Incentives</h4>
+                <div id="admin-incentive-list" class="space-y-4">
+                    <div class="text-center text-gray-500 p-4">Lade Incentives...</div>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- 2. BENUTZER-ANSICHT (Kundenansicht) -->
+        <section id="user-view" class="hidden">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6">
+                <h2 class="text-3xl font-extrabold text-gray-900">Aktionen und Incentives</h2>
+                <!-- NEU: Suchfeld -->
+                <div id="user-search-container" class="mt-4 md:mt-0 w-full md:w-1/3">
+                     <input type="text" id="user-search" placeholder="🔍 Suche (Gerät, Tarif, Incentive)..." 
+                            class="w-full p-3 border border-gray-300 rounded-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            oninput="handleUserSearch()">
+                </div>
+            </div>
+            
+            <!-- PUSH PROVISION DISPLAY (NEU GANZ OBEN, GRID LAYOUT) -->
+             <div class="mb-8 hidden">
+                <h3 class="text-2xl font-bold text-green-700 mb-4 border-b pb-2">💰 Push Provisionen</h3>
+                <div id="user-push-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Wird per JS gefüllt -->
+                </div>
+            </div>
+
+            <!-- Incentive-Übersicht (Prio entfernt) -->
+            <div class="mb-12">
+                <h3 class="text-2xl font-bold text-purple-700 mb-4 border-b pb-2">⭐ Top Incentives</h3>
+                <div id="user-incentive-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <p class="text-center text-gray-500 p-4 col-span-full">Lade Incentives...</p>
+                </div>
+            </div>
+            
+            <!-- Überschrift Geräte-Aktionen (Beginnt auf Seite 2) -->
+            <!-- WICHTIG: Die ID "device-actions-header" sorgt für den Seitenumbruch im Druck -->
+            <h3 id="device-actions-header" class="text-2xl font-bold text-blue-700 mb-6 border-b pb-2">Geräte-Aktionen</h3>
+            
+            <!-- Inhaltsangabe Promotions (Beginnt auf Seite 2) -->
+            <div id="toc-container">
+                <div class="text-center text-gray-500 p-4">Lade Inhaltsangabe...</div>
+            </div>
+
+            <!-- BUNDLES ANZEIGE (VERSCHOBEN NACH UNTEN) -->
+            <div class="mb-12 hidden" id="bundle-section-header">
+                <h3 class="text-2xl font-bold text-blue-900 mb-4 border-b pb-2">📦 o2 Bundle Angebote</h3>
+                <div id="user-bundle-list" class="">
+                    <!-- Wird per JS gefüllt -->
+                </div>
+            </div>
+
+            <!-- Gruppierter Inhalt (Promotions) (Beginnt auf Seite 3) -->
+            <div id="user-view-content">
+                <div class="text-center text-gray-500 p-4">Lade Aktionen...</div>
+            </div>
+
+            <!-- PDF Container User View -->
+            <div id="user-pdf-container" class="mt-16">
+                <!-- PDF wird hier gerendert -->
+            </div>
+        </section>
+
+    </div>
+</body>
+</html>
+        }
+
+        /* Helper Klassen für Druck/Screen Umschaltung */
+        .print-only-text { display: none; }
+
+        /* --- DRUCK / PDF STYLING --- */
+        @media print {
+            /* QUERFORMAT (Landscape) und A4 */
+            @page { 
+                size: A4 landscape; 
+                margin: 1.0cm; 
+            }
+            
+            /* Globale Resets für sauberen Vektor-Druck */
+            * {
+                -webkit-print-color-adjust: exact !important;   /* Farben drucken */
+                print-color-adjust: exact !important;
+                box-shadow: none !important;                    /* Keine Schatten (verhindert Rasterung) */
+                text-shadow: none !important;                   /* Keine Textschatten */
+                filter: none !important;                        /* Keine Filter */
+            }
+
+            body { 
+                /* WICHTIG: Reinweiß erzwingen, damit Browser nicht rastert */
+                background: #ffffff !important;
+                background-image: none !important;
+                
+                font-size: 10pt;
+                height: auto !important;
+                padding-top: 5px !important;
+                color: #000 !important;
+            }
+            
+            html {
+                background-color: #ffffff !important; 
+                height: auto !important;
+            }
+
+            /* Elemente ausblenden */
+            .no-print, 
+            .screen-only-text, 
+            #admin-view, 
+            #status-message, 
+            .toggle-switch, 
+            header button, 
+            header label, 
+            #incentive-submit-btn,
+            #submit-btn,
+            #push-submit-btn,
+            #bundle-submit-btn,
+            .admin-controls,
+            #admin-search-container,
+            #user-search-container,
+            #pdf-upload-section,
+            #visit-counter-display,
+            #data-backup-section,
+            #email-update-btn,
+            #single-view-back-btn { 
+                display: none !important; 
+            }
+            
+            /* Elemente einblenden */
+            .print-only-text {
+                display: inline-block !important;
+            }
+
+            /* --- SEITE 1: HEADER & INCENTIVES --- */
+
+            header {
+                border-bottom: 2px solid #2563eb;
+                margin-bottom: 10px !important; 
+                padding: 0 !important;
+                text-align: center !important; 
+                background: transparent !important; 
+            }
+            
+            header .header-content {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important; 
+                width: 100%;
+                padding-bottom: 5px;
+            }
+
+            header h1 {
+                font-size: 16pt !important;
+                color: #000 !important;
+                margin: 0 !important;
+            }
+            header h1 span.screen-only-text { display: none !important; }
+            
+            .hetec-logo {
+                background-color: transparent !important;
+                color: #1d4ed8 !important;
+                border: none !important;
+                font-size: 14pt !important;
+                margin-right: 15px !important;
+            }
+
+            /* Haupttitel "Aktionen und Incentives" */
+            #user-view h2.text-3xl {
+                font-size: 14pt !important;
+                margin-bottom: 10px !important;
+                margin-top: 0 !important;
+            }
+
+            /* Push Provisionen Liste (Seite 1) */
+            #user-push-list {
+                display: flex !important;
+                flex-wrap: wrap;
+                gap: 8px !important;
+                margin-bottom: 10px !important;
+                justify-content: flex-start !important; 
+            }
+            #user-push-list > div {
+                width: 48% !important; 
+                padding: 6px !important;
+                border: 1px solid #999;
+                background: white !important; 
+                page-break-inside: avoid !important;
+            }
+            #user-push-list img { width: 25px !important; height: 25px !important; }
+            #user-push-list h4 { font-size: 10pt !important; margin: 0 !important; }
+
+            /* Incentives Liste (Seite 1) */
+            #user-incentive-list {
+                display: flex !important;
+                flex-wrap: wrap;
+                gap: 8px !important;
+                margin-bottom: 10px !important;
+                justify-content: flex-start !important; 
+            }
+            #user-incentive-list > div {
+                width: 48% !important;
+                padding: 6px !important;
+                border: 1px solid #999;
+                background: white !important;
+                page-break-inside: avoid !important;
+            }
+            #user-incentive-list img { width: 35px !important; height: 35px !important; }
+            #user-incentive-list h4 { font-size: 10pt !important; margin-bottom: 2px; }
+            #user-incentive-list p { font-size: 9pt !important; }
+
+            /* --- SEITE 2: GERÄTE-AKTIONEN & TOC --- */
+            
+            #device-actions-header {
+                break-before: page !important;
+                page-break-before: always !important;
+                margin-top: 20px !important; 
+                display: block !important;
+                font-size: 16pt !important;
+                color: #1d4ed8 !important;
+                border-bottom: 2px solid #1d4ed8 !important;
+                padding-bottom: 5px !important;
+            }
+            
+            /* TOC direkt darunter auf Seite 2 */
+            #toc-container {
+                padding: 10px !important;
+                background: white !important;
+                margin-bottom: 20px !important; 
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                text-align: center !important; 
+                break-before: avoid !important;
+                page-break-before: avoid !important;
+                width: 90% !important;
+                margin-left: 5% !important;
+                margin-right: 5% !important;
+            }
+            
+            #toc-container h3 { font-size: 11pt !important; margin-bottom: 6px !important; }
+            #toc-container .grid { display: flex !important; flex-wrap: wrap; gap: 5px !important; justify-content: center !important; }
+            
+            /* WICHTIG: Links im Druck optimieren */
+            #toc-container a {
+                border: 1px solid #999; 
+                background: transparent !important; 
+                padding: 3px 6px !important;
+                font-size: 9pt !important;
+                text-decoration: none !important;
+                color: #000 !important;
+                display: inline-block !important; 
+                /* Erzwingt Text-Selektierbarkeit */
+                user-select: text !important;
+                -webkit-user-select: text !important;
+            }
+
+            /* BUNDLES LISTE (Seite 2 nach TOC) */
+            #user-bundle-list {
+                display: block !important;
+                width: 100% !important;
+                margin-bottom: 20px !important;
+                break-before: auto !important; /* Kein harter Umbruch vor Bundles zwingend, aber oft besser */
+            }
+            #user-bundle-list > div {
+                border: 2px solid #000;
+                background: #fff !important;
+                page-break-inside: avoid !important;
+                margin-bottom: 10px !important;
+            }
+
+            /* --- KACHELN / INHALT (AB SEITE 3 oder nach TOC/Bundles) --- */
+            
+            #user-view-content {
+                margin-top: 10px !important; 
+            }
+            
+            #user-view-content .grid {
+                display: block !important; 
+                text-align: left !important; 
+            }
+            
+            #user-view-content .grid > div {
+                display: inline-block !important;
+                width: 32% !important; 
+                margin-right: 1% !important;
+                margin-bottom: 15px !important;
+                vertical-align: top !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                border: 1px solid #999 !important;
+                background: white !important;
+            }
+            
+            #user-view-content .page-break-after-3 {
+                break-after: page !important;
+                page-break-after: always !important;
+            }
+
+            /* Diverse Abstände & Größen für Druck */
+            .mt-10 { margin-top: 15px !important; }
+            .pt-4 { padding-top: 5px !important; }
+            .mb-6, .mb-12 { margin-bottom: 10px !important; }
+            h3.text-3xl { 
+                font-size: 13pt !important; 
+                border-bottom: 1px solid #2563eb; 
+                padding-bottom: 5px; 
+                text-align: left !important;
+                margin-top: 15px !important;
+            }
+            .relative.h-48 { height: 110px !important; padding: 5px !important; } 
+            .p-5 { padding: 6px !important; }
+            h2.text-2xl { font-size: 11pt !important; }
+            .text-xs { font-size: 8pt !important; }
+            .space-y-2 { margin-bottom: 3px !important; }
+            
+            #user-pdf-container:not(.hidden) {
+                break-before: page;
+                display: block !important;
+            }
+            #user-pdf-container.hidden { display: none !important; }
+            div:empty { display: none !important; }
+            
+            /* Wenn Einzelansicht aktiv ist (hidden-on-single), im Druck auch ausblenden */
+            .hidden-on-single { display: none !important; }
+        }
+    </style>
+    
+    <!-- Script für Lokale Logik -->
+    <script>
+        // --- KONFIGURATION & STATE ---
+        const STORAGE_KEY_PROMOTIONS = 'am_promotions_data';
+        const STORAGE_KEY_INCENTIVES = 'am_incentives_data';
+        const STORAGE_KEY_PUSH = 'am_push_data';
+        const STORAGE_KEY_BUNDLES = 'am_bundles_data'; 
+        const STORAGE_KEY_VISITS = 'am_visits_data';
+        const STORAGE_KEY_PDF = 'am_pdf_file_data';
+        const STORAGE_KEY_CHANGES = 'am_recent_changes'; 
+        
+        const UPLOADED_PDF_FILE = {
+            contentFetchId: "uploaded:Aktionsmappe Neu 12.2025.pdf",
+            fileName: "Aktionsmappe Neu 12.2025.pdf"
+        };
+
+        let promotions = [];
+        let incentives = [];
+        let pushProvisions = []; 
+        let bundles = []; 
+        let recentChanges = [];
+        let pdfData = null; 
+        
+        const predefinedProviders = ['o2', 'HeTec', 'GreenMnky', 'Freiertext'];
+
         const generateId = () => {
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
         };
@@ -2256,3 +4649,4 @@
     </div>
 </body>
 </html>
+
