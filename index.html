@@ -512,7 +512,10 @@
             titleContainer.insertBefore(backBtn, titleContainer.firstChild);
 
             if (bundle) {
-                 // Render ONLY this bundle. PASS isSingleView = true
+                window.__ACTIVE_BUNDLE_FOR_TRANSFER = bundle;
+                // Render ONLY this bundle.
+                 // Optional: wenn im PencilSelling-iFrame geöffnet, einmal automatisch senden
+                 setTimeout(() => { try { if (window.parent && window.parent !== window) sendBundleDataToParent(bundle); } catch(_) {} }, 800);
                  renderUserView([], [], [], [bundle], true); 
                  bundleListEl.classList.remove('hidden');
                  bundleHeaderEl.classList.remove('hidden');
@@ -522,6 +525,91 @@
                 bundleListEl.classList.remove('hidden');
             }
         }
+
+        // --- BUNDLE -> PENCILSELLING AUTO-IMPORT (postMessage) ---
+        // Speichert das aktuell geöffnete Bundle (Einzelansicht) für den Import ins PencilSelling-Dashboard.
+        window.__ACTIVE_BUNDLE_FOR_TRANSFER = window.__ACTIVE_BUNDLE_FOR_TRANSFER || null;
+
+        function __normalizeEuro(val) {
+            const s = String(val ?? '').trim();
+            if (!s) return '';
+            // akzeptiert "89,99", "89.99", "89,99 €"
+            if (s.includes('€')) return s;
+            return s + ' €';
+        }
+
+        function __buildDetailsHTMLFromText(text) {
+            const raw = String(text ?? '').replace(/\r/g, '').trim();
+            if (!raw) return '';
+            const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+            // Wenn schon Bullet-Style drin ist, übernehmen wir es als Liste.
+            const items = [];
+            for (const l of lines) {
+                const cleaned = l.replace(/^[-•]\s*/, '').trim();
+                if (!cleaned) continue;
+                items.push(cleaned);
+            }
+            if (!items.length) return '';
+            return `
+                <ul style="margin:0; padding-left:18px;">
+                    ${items.map(i => `<li style="margin:6px 0;">${i.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</li>`).join('')}
+                </ul>
+            `;
+        }
+
+        function __extractBadgesFromBundle(b) {
+            const badges = [];
+            if (!b) return badges;
+            if (b.optionOnlineSchutz) badges.push('inkl. online Schutz');
+            if (b.optionTV) badges.push('o2 TV');
+            const custom = String(b.optionCustom ?? '').trim();
+            if (custom) badges.push(custom);
+            // Ein paar häufige Keywords aus dem Rechnungsweg als Badge übernehmen
+            const rw = String(b.rechnungsweg ?? '').toLowerCase();
+            if (rw.includes('online to offline')) badges.push('online to offline');
+            return badges.slice(0, 6);
+        }
+
+        function sendBundleDataToParent(bundle) {
+            const b = bundle || window.__ACTIVE_BUNDLE_FOR_TRANSFER;
+            if (!b) return;
+
+            const images = Array.isArray(b.images) ? b.images.filter(Boolean).slice(0, 2) : [];
+            const badges = __extractBadgesFromBundle(b);
+            const detailsHTML = __buildDetailsHTMLFromText(b.rechnungsweg || '');
+
+            const payload = {
+                type: 'BUNDLE_DATA_TRANSFER',
+                titel: b.titel || 'Bundle',
+                tarifName: b.tarifName || '',
+                preis: __normalizeEuro(b.angebotspreis || ''),
+                detailsHTML: detailsHTML,
+                badges: badges,
+                validUntil: b.end || '',
+                images: images,
+
+                // Backward-Compat
+                bezeichnung: b.titel || 'Bundle',
+                artikelName: b.tarifName || '',
+                bildUrl: images[0] || ''
+            };
+
+            // Nur senden, wenn wir wirklich in einem iFrame / Parent-Kontext sind
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage(payload, '*');
+                console.log('[Aktionsmappe] BUNDLE_DATA_TRANSFER gesendet:', payload);
+            }
+        }
+
+        // Empfängt Anfrage vom PencilSelling (BundleModal) und antwortet mit BUNDLE_DATA_TRANSFER.
+        window.addEventListener('message', (e) => {
+            const d = e.data || {};
+            if (d && d.type === 'REQUEST_BUNDLE_SCREENSHOT') {
+                // Wir senden bewusst Daten (HTML) statt Screenshot.
+                sendBundleDataToParent();
+            }
+        });
+        // --- /BUNDLE -> PENCILSELLING AUTO-IMPORT ---
 
         window.copyBundleLink = (id) => {
             const baseUrl = window.location.href.split('?')[0];
