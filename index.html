@@ -698,6 +698,13 @@
                 validUntil: b.end || '',
                 images: images,
 
+                // Extra-Compat (PencilSelling Render-Logik: geraet/tarif/preis/bild)
+                isBundle: true,
+                geraet: b.titel || 'Bundle',
+                tarif: b.tarifName || '',
+                angebotspreis: b.angebotspreis || '',
+                bild: images[0] || '',
+
                 // Backward-Compat
                 bezeichnung: b.titel || 'Bundle',
                 artikelName: b.tarifName || '',
