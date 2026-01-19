@@ -343,6 +343,8 @@
 
         let __firebaseApp = null;
         let __db = null;
+        let __lastCloudError = null;
+        let __cloudWarnedOnce = false;
 
         function initCloudSync() {
             if (!CLOUD_SYNC_ENABLED) return false;
@@ -369,7 +371,13 @@
                 const data = snap.data() || null;
                 return data;
             } catch (e) {
+                __lastCloudError = e;
+                const msg = (e && (e.code || e.message)) ? ((e.code ? (e.code + ": ") : "") + (e.message || "")) : "Unbekannter Fehler";
                 console.warn('Cloud Load fehlgeschlagen:', e);
+                if (!__cloudWarnedOnce) {
+                    __cloudWarnedOnce = true;
+                    try { showMessage("⚠️ Cloud-Load fehlgeschlagen: " + msg, true); } catch(_) {}
+                }
                 return null;
             }
         }
@@ -389,6 +397,8 @@
                 }, { merge: true });
                 return true;
             } catch (e) {
+                __lastCloudError = e;
+                const msg = (e && (e.code || e.message)) ? ((e.code ? (e.code + ": ") : "") + (e.message || "")) : "Unbekannter Fehler";
                 console.warn('Cloud Save fehlgeschlagen:', e);
                 return false;
             }
@@ -648,7 +658,8 @@
                         if (ok) {
                             showMessage("✅ In Cloud gespeichert (alle Shops)");
                         } else {
-                            showMessage("⚠️ Cloud-Speichern fehlgeschlagen (offline?)", true);
+                            const err = (__lastCloudError && (__lastCloudError.code || __lastCloudError.message)) ? (((__lastCloudError.code ? (__lastCloudError.code + ": ") : "") ) + (__lastCloudError.message || "")) : "Bitte Konsole prüfen";
+                            showMessage("⚠️ Cloud-Speichern fehlgeschlagen: " + err, true);
                         }
                     })();
                 }
