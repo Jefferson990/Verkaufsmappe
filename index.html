@@ -11,8 +11,6 @@
     <!-- Wichtig: GitHub Pages ist statisch. "Speichern im Hosting" geht nur ueber eine Datenbank (Firestore). -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <!-- Auth (empfohlen fuer sichere Firestore Rules: request.auth != null) -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <!-- Konfiguriere Tailwind für die Inter-Schriftart -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
@@ -348,63 +346,24 @@
         let __lastCloudError = null;
         let __cloudWarnedOnce = false;
 
-        
-        async function initCloudSync(forceReinit = false) {
+        function initCloudSync() {
             if (!CLOUD_SYNC_ENABLED) return false;
             try {
                 if (!window.firebase || !window.firebase.initializeApp) {
                     console.warn('Firebase SDK nicht geladen. Cloud Sync deaktiviert.');
-                    __lastCloudError = new Error('Firebase SDK nicht geladen');
                     return false;
                 }
-
-                // Init App/DB einmalig (oder neu, wenn forceReinit)
-                if (forceReinit) {
-                    try {
-                        if (window.firebase.apps && window.firebase.apps.length) {
-                            // keine harte delete, nur DB neu setzen
-                        }
-                    } catch(_) {}
-                }
-
                 __firebaseApp = window.firebase.apps?.length ? window.firebase.app() : window.firebase.initializeApp(firebaseConfig);
                 __db = window.firebase.firestore();
-
-                // Auth: WICHTIG für sichere Rules (request.auth != null)
-                // Wir warten hier bewusst auf signIn, damit direkt danach read/write klappt.
-                try {
-                    if (window.firebase.auth) {
-                        const auth = window.firebase.auth();
-                        // already signed in?
-                        if (!auth.currentUser) {
-                            // Timeout-Guard: verhindert "Hängen" bei Netzwerkproblemen
-                            const signInPromise = auth.signInAnonymously();
-                            const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('Auth-Timeout')), 8000));
-                            await Promise.race([signInPromise, timeoutPromise]);
-                        }
-                    }
-                } catch (authErr) {
-                    // Wenn Rules offen sind, ist Auth nicht zwingend.
-                    // Wenn Rules sicher sind, wird read/write ohne Auth später permission-denied liefern.
-                    console.warn('Anonymous Auth fehlgeschlagen:', authErr);
-                    __lastCloudError = authErr;
-                }
-
                 return true;
             } catch (e) {
                 console.warn('Cloud Sync init fehlgeschlagen:', e);
-                __lastCloudError = e;
                 return false;
             }
         }
 
-        async function __cloudReady() {
-            const ok = await initCloudSync(false);
-            return ok && !!__db;
-        }
-
-        async function loadDataFromCloud(async function loadDataFromCloud() {
-            if (!(await __cloudReady())) return null;
+        async function loadDataFromCloud() {
+            if (!initCloudSync() || !__db) return null;
             try {
                 const ref = __db.collection(CLOUD_COLLECTION).doc(CLOUD_DOC_ID);
                 const snap = await ref.get();
@@ -424,7 +383,7 @@
         }
 
         async function saveDataToCloud(payload) {
-            if (!(await __cloudReady())) return false;
+            if (!initCloudSync() || !__db) return false;
             try {
                 const ref = __db.collection(CLOUD_COLLECTION).doc(CLOUD_DOC_ID);
                 // Merge: falls du spaeter Felder erweiterst, bleibt es kompatibel
@@ -565,14 +524,6 @@
                 // 1) Zuerst versuchen wir die gemeinsame Cloud-Datenbasis zu laden.
                 //    Wenn vorhanden: in State uebernehmen UND als Cache in localStorage spiegeln.
                 const cloud = await loadDataFromCloud();
-                if (!cloud && CLOUD_SYNC_ENABLED) {
-                    // Debug-Hinweis: Wenn du hier immer landest, ist Cloud nicht erreichbar oder Doc existiert noch nicht.
-                    // In Incognito/anderen Rechnern ist dann logischerweise nichts da (nur localStorage).
-                    try {
-                        const err = (__lastCloudError && (__lastCloudError.code || __lastCloudError.message)) ? (((__lastCloudError.code ? (__lastCloudError.code + ': ') : '')) + (__lastCloudError.message || '')) : '';
-                        if (err) showMessage('⚠️ Cloud nicht verfügbar: ' + err, true);
-                    } catch(_) {}
-                }
                 if (cloud && typeof cloud === 'object') {
                     try {
                         if (Array.isArray(cloud.promotions)) {
