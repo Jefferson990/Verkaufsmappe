@@ -296,7 +296,23 @@
             /* Wenn Einzelansicht aktiv ist (hidden-on-single), im Druck auch ausblenden */
             .hidden-on-single { display: none !important; }
         }
-    </style>
+    
+
+/* === ADMIN TABS (UI-only) === */
+.admin-tab-btn{background:#fff;color:#334155;border-color:#e2e8f0;}
+.admin-tab-btn:hover{background:#f8fafc;}
+.admin-tab-btn.is-active{background:#0f172a;color:#fff;border-color:#0f172a;}
+.admin-tab-btn.is-active span{background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.25);color:#fff;}
+
+/* === BUNDLE CARD UI TWEAKS (Kundenansicht) === */
+.bundle-card-title{font-size:18px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bundle-card-title .bundle-title-text{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+@media (max-width:420px){.bundle-card-title{font-size:16px;}}
+.bundle-term-select{border:1px solid rgba(255,255,255,0.35);background:rgba(255,255,255,0.12);color:#fff;padding:4px 8px;border-radius:8px;font-weight:700;font-size:12px;}
+.bundle-term-select option{color:#0f172a;}
+.bundle-onetime{font-size:11px;font-weight:800;color:#fee2e2;margin-top:2px;text-align:center;}
+
+</style>
     
     <!-- Script für Lokale Logik -->
     <script>
@@ -345,6 +361,11 @@
         let __db = null;
         let __lastCloudError = null;
         let __cloudWarnedOnce = false;
+        let __cloudLoadedToastShown = false;
+
+        // FIX: Standard-SIM Bild (wird bei Bundles optional automatisch als zusätzliches Bild angezeigt)
+        const FIXED_SIM_IMAGE_DATAURI = 'data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27800%27%20height%3D%27520%27%20viewBox%3D%270%200%20800%20520%27%3E%0A%20%20%20%20%3Cdefs%3E%0A%20%20%20%20%20%20%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%270%27%20stop-color%3D%27%23f8fafc%27/%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%271%27%20stop-color%3D%27%23e2e8f0%27/%3E%0A%20%20%20%20%20%20%3C/linearGradient%3E%0A%20%20%20%20%3C/defs%3E%0A%20%20%20%20%3Crect%20x%3D%2730%27%20y%3D%2730%27%20rx%3D%2740%27%20ry%3D%2740%27%20width%3D%27740%27%20height%3D%27460%27%20fill%3D%27url%28%23g%29%27%20stroke%3D%27%2394a3b8%27%20stroke-width%3D%2710%27/%3E%0A%20%20%20%20%3Cpath%20d%3D%27M610%2030%20L770%20190%20L770%2030%20Z%27%20fill%3D%27%23cbd5e1%27/%3E%0A%20%20%20%20%3Crect%20x%3D%27210%27%20y%3D%27160%27%20rx%3D%2726%27%20ry%3D%2726%27%20width%3D%27380%27%20height%3D%27240%27%20fill%3D%27%23f1f5f9%27%20stroke%3D%27%2394a3b8%27%20stroke-width%3D%2710%27/%3E%0A%20%20%20%20%3Crect%20x%3D%27250%27%20y%3D%27200%27%20rx%3D%2718%27%20ry%3D%2718%27%20width%3D%27300%27%20height%3D%2780%27%20fill%3D%27%23f59e0b%27%20stroke%3D%27%23b45309%27%20stroke-width%3D%2710%27/%3E%0A%20%20%20%20%3Crect%20x%3D%27250%27%20y%3D%27305%27%20rx%3D%2718%27%20ry%3D%2718%27%20width%3D%27140%27%20height%3D%2770%27%20fill%3D%27%23fbbf24%27%20stroke%3D%27%23b45309%27%20stroke-width%3D%2710%27/%3E%0A%20%20%20%20%3Crect%20x%3D%27410%27%20y%3D%27305%27%20rx%3D%2718%27%20ry%3D%2718%27%20width%3D%27140%27%20height%3D%2770%27%20fill%3D%27%23fde68a%27%20stroke%3D%27%23b45309%27%20stroke-width%3D%2710%27/%3E%0A%20%20%20%20%3Ctext%20x%3D%2770%27%20y%3D%27470%27%20font-family%3D%27Inter%2C%20Arial%27%20font-size%3D%2752%27%20fill%3D%27%2394a3b8%27%20font-weight%3D%27700%27%3ESIM%3C/text%3E%0A%3C/svg%3E';
+
 
         function initCloudSync() {
             if (!CLOUD_SYNC_ENABLED) return false;
@@ -470,6 +491,7 @@
                         optionOnlineSchutz: false,
                         optionTV: false,
                         optionCustom: '',
+                        hasSim: true,
                         images: [],
                         shopLink: '',
                         gutscheincode: '',
@@ -542,7 +564,7 @@
                             bundles = cloud.bundles;
                             localStorage.setItem(STORAGE_KEY_BUNDLES, JSON.stringify(bundles));
                         }
-                        showMessage("✅ Cloud-Daten geladen (alle Shops)");
+                        if (!__cloudLoadedToastShown) { __cloudLoadedToastShown = true; showMessage("✅ Cloud-Daten geladen (alle Shops)"); }
                     } catch (e) {
                         console.warn('Cloud->Local Cache fehlgeschlagen:', e);
                     }
@@ -634,6 +656,57 @@
             } catch (e) {
                 console.error("Fehler beim Laden der lokalen Daten", e);
                 showMessage("Fehler beim Laden der Daten", true);
+            }
+        }
+
+
+        // Re-render ohne Cloud-Load (verhindert Storage-Event Ping-Pong zwischen mehreren Tabs)
+        function reloadFromLocalStorageOnly() {
+            try {
+                const pData = localStorage.getItem(STORAGE_KEY_PROMOTIONS);
+                const iData = localStorage.getItem(STORAGE_KEY_INCENTIVES);
+                const pushData = localStorage.getItem(STORAGE_KEY_PUSH);
+                const bundleData = localStorage.getItem(STORAGE_KEY_BUNDLES);
+                const pdfLocal = localStorage.getItem(STORAGE_KEY_PDF);
+                const changesData = localStorage.getItem(STORAGE_KEY_CHANGES);
+
+                promotions = pData ? JSON.parse(pData) : (promotions || []);
+                incentives = iData ? JSON.parse(iData) : (incentives || []);
+                bundles = bundleData ? JSON.parse(bundleData) : (bundles || []);
+                ensureFixedBundleSlots();
+                recentChanges = changesData ? JSON.parse(changesData) : (recentChanges || []);
+
+                const normalizePush = (p) => {
+                    // normalize legacy format
+                    if (!p.betrag && typeof p.titel === 'string' && p.titel.includes('€')) {
+                        const numericPart = parseFloat(p.titel.replace('€', '').trim());
+                        return {
+                            ...p,
+                            titel: 'Zusatz-Push',
+                            betrag: isNaN(numericPart) ? 0 : numericPart,
+                        };
+                    }
+                    p.betrag = p.betrag ? parseFloat(p.betrag) : 0;
+                    return p;
+                };
+
+                pushProvisions = pushData ? JSON.parse(pushData).map(normalizePush) : (pushProvisions || []);
+                pdfData = pdfLocal ? JSON.parse(pdfLocal) : (pdfData || null);
+
+                promotions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                incentives.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                pushProvisions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                bundles = sortBundlesForUI(bundles);
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const bundleId = urlParams.get('bundleId');
+                if (bundleId) {
+                    renderSingleBundleView(bundleId);
+                } else {
+                    refreshUI();
+                }
+            } catch (e) {
+                console.warn('Local reload fehlgeschlagen:', e);
             }
         }
 
@@ -1173,6 +1246,12 @@
             const imageInputs = document.querySelectorAll('#bundle-images-container input');
             const imagesArray = Array.from(imageInputs).map(input => input.value.trim()).filter(url => url.length > 0);
 
+            const preis24 = String(form.bundlePreis24?.value || form.bundlePreis?.value || '').trim();
+            const preis36 = String(form.bundlePreis36?.value || '').trim();
+            const once = String(form.bundleEinmalkosten?.value || '').trim();
+            // Backward-Compat: altes Feld bundlePreis mit 24M befüllen
+            if (form.bundlePreis) form.bundlePreis.value = preis24;
+
             const existing = bundles.find(b => b.id === slotId);
             const createdAt = existing?.createdAt || new Date().toISOString();
 
@@ -1186,7 +1265,11 @@
 
                 titel: form.bundleTitel.value,
                 tarifName: form.bundleTarifName.value,
-                angebotspreis: form.bundlePreis.value,
+                angebotspreis: preis24,
+                preis24: preis24,
+                preis36: preis36,
+                einmalkosten: once,
+                hasSim: (typeof form.bundleHasSim !== 'undefined') ? !!form.bundleHasSim.checked : true,
                 optionOnlineSchutz: form.bundleOptionOnlineSchutz.checked,
                 optionTV: form.bundleOptionTV.checked,
                 optionCustom: form.bundleOptionCustom.value,
@@ -1247,9 +1330,13 @@
 
             form.bundleTitel.value = data.titel || '';
             form.bundleTarifName.value = data.tarifName || '';
-            form.bundlePreis.value = data.angebotspreis || '';
+            if (form.bundlePreis24) form.bundlePreis24.value = (data.preis24 || data.angebotspreis || '');
+            if (form.bundlePreis36) form.bundlePreis36.value = (data.preis36 || '');
+            if (form.bundleEinmalkosten) form.bundleEinmalkosten.value = (data.einmalkosten || '');
+            if (form.bundlePreis) form.bundlePreis.value = (data.preis24 || data.angebotspreis || '');
             form.bundleOptionOnlineSchutz.checked = !!data.optionOnlineSchutz;
             form.bundleOptionTV.checked = !!data.optionTV;
+            if (form.bundleHasSim) form.bundleHasSim.checked = (typeof data.hasSim === 'boolean') ? data.hasSim : true;
             form.bundleOptionCustom.value = data.optionCustom || '';
 
             const container = document.getElementById('bundle-images-container');
@@ -1276,6 +1363,26 @@
             }, (err) => {
                 console.error('Async: Could not copy text: ', err);
             });
+        };
+
+        // --- BUNDLE: Laufzeit-Auswahl (Kundenansicht) ---
+        // Speichert die Auswahl pro Bundle und aktualisiert nur die Preis-Anzeige im jeweiligen Kasten.
+        window.onBundleTermChange = (bundleId, term) => {
+            try {
+                const m = parseInt(term, 10);
+                if (![24, 36].includes(m)) return;
+                localStorage.setItem('bundle_term_' + bundleId, String(m));
+                const priceEl = document.getElementById('bundle-price-' + bundleId);
+                if (!priceEl) return;
+                const card = priceEl.closest('[data-bundle-id]');
+                if (!card) return;
+                const p24 = (card.getAttribute('data-p24') || '').trim();
+                const p36 = (card.getAttribute('data-p36') || '').trim();
+                const newVal = (m === 36 ? (p36 || p24) : (p24 || p36)) || '';
+                if (newVal) priceEl.textContent = newVal + ' €';
+            } catch (e) {
+                console.warn('onBundleTermChange failed', e);
+            }
         };
 
 
@@ -1557,7 +1664,9 @@
         
         function renderAdminPushList(list) {
             const listEl = document.getElementById('admin-push-list');
-            if (list.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-400">Keine Push-Provisionen vorhanden.</p>'; return; }
+            if (list.length === 0) {
+                updateAdminTabCount('admin-tab-count-push', 0);
+                listEl.innerHTML = '<p class="text-center text-gray-400">Keine Push-Provisionen vorhanden.</p>'; return; }
             listEl.innerHTML = list.map(p => {
                 const expired = isExpired(p.end);
                 const betragDisplay = p.betrag > 0 ? `${p.betrag.toFixed(2)} €` : 'Betrag n.A.';
@@ -1574,6 +1683,7 @@
                     </div>
                 `;
             }).join('');
+            updateAdminTabCount('admin-tab-count-push', list.length);
         }
 
         function renderAdminBundleList(list) {
@@ -1587,6 +1697,7 @@
 
             if (fixed.length === 0) {
                 listEl.innerHTML = legacyHint + '<p class="text-center text-gray-400">Keine Bundle-Slots vorhanden.</p>';
+                updateAdminTabCount('admin-tab-count-bundle', 0);
                 return;
             }
 
@@ -1618,11 +1729,14 @@
                     </div>
                 `;
             }).join('');
+            updateAdminTabCount('admin-tab-count-bundle', fixed.length);
         }
 
         function renderAdminPromotionList(list) {
             const listEl = document.getElementById('admin-promotion-list');
-            if (list.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-400">Keine Aktionen gefunden.</p>'; return; }
+            if (list.length === 0) {
+                updateAdminTabCount('admin-tab-count-promotions', 0);
+                listEl.innerHTML = '<p class="text-center text-gray-400">Keine Aktionen gefunden.</p>'; return; }
             listEl.innerHTML = list.map(p => {
                 const marge = calculateMargin(p.einkaufspreis, p.verkaufspreis, p.noEinkaufspreis, p.noVerkaufspreis);
                 const expired = isExpired(p.aktionsende); 
@@ -1664,11 +1778,14 @@
                     </div>
                 `;
             }).join('');
+            updateAdminTabCount('admin-tab-count-promotions', list.length);
         }
 
         function renderAdminIncentiveList(list) {
             const listEl = document.getElementById('admin-incentive-list');
-            if (list.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-400">Keine Incentives vorhanden.</p>'; return; }
+            if (list.length === 0) {
+                updateAdminTabCount('admin-tab-count-incentives', 0);
+                listEl.innerHTML = '<p class="text-center text-gray-400">Keine Incentives vorhanden.</p>'; return; }
             listEl.innerHTML = list.map(p => {
                 const expired = isExpired(p.incentiveEnd);
                 return `
@@ -1747,9 +1864,18 @@
             
             if (activeBundles.length > 0) {
                 bundleListEl.innerHTML = activeBundles.map(b => {
-                    const imagesHtml = b.images && b.images.length > 0 
-                        ? `<div class="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-thin">
-                            ${b.images.map(img => `<img src="${img}" class="h-40 w-auto object-contain rounded-md border border-gray-200 shadow-sm" onerror="this.style.display='none'">`).join('')}
+                    // Bilder: nicht als super-breite Reihe, sondern als Kachel-Grid (wrapt automatisch)
+                    // -> wirkt wie bei "Kunden Aktionen" sauber und bleibt kompakt.
+                    const rawImages = Array.isArray(b.images) ? b.images.filter(Boolean) : [];
+                    const includeSim = (typeof b.hasSim === 'boolean') ? b.hasSim : true;
+                    const effectiveImages = includeSim ? rawImages.concat([FIXED_SIM_IMAGE_DATAURI]) : rawImages;
+                    const imagesHtml = (effectiveImages && effectiveImages.length > 0)
+                        ? `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                            ${effectiveImages.map(img => `
+                                <div class="bg-white border border-gray-100 rounded-lg shadow-sm p-2">
+                                    <img src="${img}" class="w-full h-40 object-contain" onerror="this.style.display='none'">
+                                </div>
+                            `).join('')}
                           </div>`
                         : '';
                     
@@ -1760,12 +1886,17 @@
                     ].filter(Boolean).join('');
 
                     return `
-                        <div class="break-inside-avoid print-break-avoid bg-white rounded-xl shadow-2xl overflow-hidden border-2 border-blue-800 mb-8 transform hover:scale-[1.01] transition duration-300">
-                            <div class="bg-blue-900 p-4 text-white flex justify-between items-center">
-                                <h3 class="text-2xl font-bold flex items-center">
-                                    <span class="mr-2">📦</span> ${b.titel}
-                                </h3>
-                                <span class="text-xs bg-blue-700 px-2 py-1 rounded">Gültig bis: ${b.end}</span>
+                        <div class="break-inside-avoid print-break-avoid bg-white rounded-xl shadow-2xl overflow-hidden border-2 border-blue-800 transform hover:scale-[1.01] transition duration-300 h-full">
+                            <div class="bg-blue-900 p-4 text-white">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <h3 class="bundle-card-title font-bold flex items-center gap-2 flex-1 min-w-0">
+                                        <span class="flex-shrink-0">📦</span>
+                                        <span class="bundle-title-text">${b.titel}</span>
+                                    </h3>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="text-xs bg-blue-700 px-2 py-1 rounded inline-block">Gültig bis: ${b.end}</span>
+                                </div>
                             </div>
                             <div class="p-6 relative">
                                 <div class="flex flex-col md:flex-row justify-between items-start mb-4">
@@ -1773,12 +1904,31 @@
                                         <h4 class="text-xl font-bold text-gray-800 mb-1">${b.tarifName || 'Tarif nicht angegeben'}</h4>
                                         <div class="flex gap-2 flex-wrap mt-2">${badges}</div>
                                     </div>
-                                    ${b.angebotspreis ? `
-                                        <div class="bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg transform rotate-2 md:rotate-0">
-                                            <span class="block text-xs uppercase font-bold text-red-100 text-center">Angebotspreis</span>
-                                            <span class="block text-3xl font-extrabold">${b.angebotspreis} €</span>
-                                        </div>
-                                    ` : ''}
+                                    ${(() => {
+                                        const p24 = String(b.preis24 ?? b.preis_24 ?? b.preis24m ?? b.angebotspreis ?? '').trim();
+                                        const p36 = String(b.preis36 ?? b.preis_36 ?? b.preis36m ?? '').trim();
+                                        const once = String(b.einmalkosten ?? b.einmal ?? '').trim();
+                                        const opts = [];
+                                        if (p24) opts.push({m:24, v:p24});
+                                        if (p36) opts.push({m:36, v:p36});
+                                        if (!opts.length) return '';
+                                        const key = 'bundle_term_' + b.id;
+                                        let sel = parseInt(localStorage.getItem(key) || '0', 10);
+                                        if (!opts.some(o => o.m === sel)) sel = opts[0].m;
+                                        const dv = (opts.find(o => o.m === sel) || opts[0]).v;
+                                        const selectHtml = (opts.length > 1)
+                                            ? `<select class="bundle-term-select" aria-label="Laufzeit" onchange="window.onBundleTermChange && window.onBundleTermChange('${b.id}', this.value)">${opts.map(o => `<option value="${o.m}" ${o.m===sel?'selected':''}>${o.m} Monate</option>`).join('')}</select>`
+                                            : `<span class="text-xs bg-blue-700 px-2 py-1 rounded font-bold">${opts[0].m} Monate</span>`;
+                                        const onceHtml = once ? `<div class="bundle-onetime">Einmalig: ${once} €</div>` : '';
+                                        return `
+                                            <div class="bg-red-600 text-white px-4 py-2 rounded-md shadow-md" data-bundle-id="${b.id}" data-p24="${p24}" data-p36="${p36}">
+                                                <div class="flex items-center justify-center gap-2 mb-1">${selectHtml}</div>
+                                                <span class="block text-xs uppercase font-bold text-red-100 text-center">Angebotspreis</span>
+                                                <span id="bundle-price-${b.id}" class="block text-2xl font-extrabold text-center">${dv} €</span>
+                                                ${onceHtml}
+                                            </div>
+                                        `;
+                                    })()}
                                 </div>
 
                                 ${imagesHtml}
@@ -1948,6 +2098,7 @@
                 if(isAdmin) emailBtn.classList.remove('hidden');
                 else emailBtn.classList.add('hidden');
             }
+            updateAdminTabCount('admin-tab-count-incentives', list.length);
         };
 
         window.toggleFreeText = (manualOverride) => {
@@ -1961,14 +2112,67 @@
         };
 
         // --- INIT ---
+
+        // --- ADMIN TABS (UI-only) ---
+        function setAdminTab(tabKey) {
+            const btns = Array.from(document.querySelectorAll('.admin-tab-btn'));
+            const panels = Array.from(document.querySelectorAll('.admin-tab-panel'));
+            btns.forEach(b => {
+                const active = b.getAttribute('data-tab') === tabKey;
+                b.classList.toggle('is-active', active);
+            });
+            panels.forEach(p => {
+                const active = p.getAttribute('data-tab-panel') === tabKey;
+                p.classList.toggle('hidden', !active);
+            });
+            try { sessionStorage.setItem('ADMIN_ACTIVE_TAB', tabKey); } catch(e) {}
+        }
+
+        function updateAdminTabCount(id, value) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const n = (typeof value === 'number') ? value : (Array.isArray(value) ? value.length : 0);
+            el.textContent = String(n);
+        }
+
+        function initAdminTabs() {
+            const btns = Array.from(document.querySelectorAll('.admin-tab-btn'));
+            if (!btns.length) return;
+            btns.forEach(btn => {
+                btn.addEventListener('click', () => setAdminTab(btn.getAttribute('data-tab')));
+            });
+            let startTab = 'push';
+            try {
+                const saved = sessionStorage.getItem('ADMIN_ACTIVE_TAB');
+                if (saved) startTab = saved;
+            } catch(e) {}
+            setAdminTab(startTab);
+        }
+
+
+        // Click-Delegation (failsafe): Tabs funktionieren auch wenn vorherige Funktionen Fehler werfen
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.admin-tab-btn');
+            if (!btn) return;
+            e.preventDefault();
+            const key = btn.getAttribute('data-tab');
+            if (!key) return;
+            setAdminTab(key);
+        }, true);
+
+
         document.addEventListener('DOMContentLoaded', () => {
-            loadData();
-            trackAndDisplayVisits();
-            switchView(); 
-            toggleFreeText(false); 
+            // Tabs sofort initialisieren (UI darf nicht von Cloud/Render-Fehlern blockiert werden)
+            try { initAdminTabs(); } catch(e) {}
+
+            // Restliche Initialisierung abgesichert (damit ein Fehler nicht die komplette UI lahmlegt)
+            try { loadData(); } catch(e) { console.warn('loadData error', e); }
+            try { trackAndDisplayVisits(); } catch(e) { console.warn('trackAndDisplayVisits error', e); }
+            try { switchView(); } catch(e) { console.warn('switchView error', e); }
+            try { toggleFreeText(false); } catch(e) {}
             // Initialize one empty image field for bundle form
-            addBundleImageField(); 
-            populateBundleSlotOptions();
+            try { addBundleImageField(); } catch(e) {}
+            try { populateBundleSlotOptions(); } catch(e) {}
 
             
             const today = new Date();
@@ -1994,7 +2198,9 @@
 
             window.addEventListener('storage', (e) => {
                 if ([STORAGE_KEY_PROMOTIONS, STORAGE_KEY_INCENTIVES, STORAGE_KEY_VISITS, STORAGE_KEY_PUSH, STORAGE_KEY_BUNDLES, STORAGE_KEY_PDF].includes(e.key)) {
-                    loadData();
+                    // Debounce + Local-only reload (kein Cloud-Load, kein Zurueckschreiben in localStorage)
+                    window.__lsReloadT && clearTimeout(window.__lsReloadT);
+                    window.__lsReloadT = setTimeout(() => reloadFromLocalStorageOnly(), 150);
                 }
             });
             const currencyInputs = ['einmalzahlungXL', 'einmalzahlungL', 'einmalzahlungM', 'einmalzahlungS', 'einmalzahlungHomeXL', 'einmalzahlungHomeL', 'einmalzahlungHomeM', 'einmalzahlungHomeS', 'sonderprovision'];
@@ -2061,7 +2267,12 @@
                 Besuche diesen Monat: Lade...
             </div>
             
-            <!-- PUSH PROVISION VERWALTUNG (NEU GANZ OBEN) -->
+            
+            <!-- ADMIN: Eingaben (oben) -->
+            <div class="pt-2">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Eingaben / Pflege</h2>
+                <div class="space-y-8">
+<!-- PUSH PROVISION VERWALTUNG (NEU GANZ OBEN) -->
             <div class="space-y-6 pt-2 pb-6 border-b-2 border-green-300 bg-green-50 rounded-lg p-4">
                 <h3 class="text-xl font-bold text-green-700 flex items-center">
                     💰 Push Provision Verwaltung
@@ -2105,14 +2316,9 @@
                         </div>
                     </form>
                 </div>
-                
-                <h4 class="text-lg font-bold text-gray-800">Aktuelle Push-Provisionen</h4>
-                <div id="admin-push-list" class="space-y-4">
-                    <div class="text-center text-gray-500 p-4">Lade Push Provisionen...</div>
-                </div>
             </div>
 
-            <!-- BUNDLE VERWALTUNG (NEU) -->
+<!-- BUNDLE VERWALTUNG (NEU) -->
             <div class="space-y-6 pt-6 border-b-2 border-blue-900 bg-blue-50 rounded-lg p-4">
                 <h3 class="text-xl font-bold text-blue-900 flex items-center">
                     📦 o2 Bundle Angebote Verwaltung
@@ -2146,9 +2352,23 @@
                                 <label for="bundleTarifName" class="block text-sm font-medium text-gray-700">Tarif Name (z.B. o2 Mobile M)</label>
                                 <input type="text" id="bundleTarifName" name="bundleTarifName" placeholder="o2 Mobile M" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
                             </div>
-                            <div>
-                                <label for="bundlePreis" class="block text-sm font-medium text-gray-700">Angebotspreis (€)</label>
-                                <input type="text" id="bundlePreis" name="bundlePreis" placeholder="49.99" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border font-bold text-blue-900">
+                            <div class="md:col-span-2">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label for="bundlePreis24" class="block text-sm font-medium text-gray-700">Preis 24 Monate (€/Monat)</label>
+                                        <input type="text" id="bundlePreis24" name="bundlePreis24" placeholder="z.B. 49,99" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border font-bold text-blue-900">
+                                    </div>
+                                    <div>
+                                        <label for="bundlePreis36" class="block text-sm font-medium text-gray-700">Preis 36 Monate (€/Monat)</label>
+                                        <input type="text" id="bundlePreis36" name="bundlePreis36" placeholder="z.B. 44,99" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border font-bold text-blue-900">
+                                    </div>
+                                    <div>
+                                        <label for="bundleEinmalkosten" class="block text-sm font-medium text-gray-700">Einmalkosten (einmalig €)</label>
+                                        <input type="text" id="bundleEinmalkosten" name="bundleEinmalkosten" placeholder="z.B. 0,00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                    </div>
+                                </div>
+                                <input type="hidden" id="bundlePreis" name="bundlePreis" value="">
+                                <p class="text-xs text-gray-500 mt-1">Wenn 24 & 36 gesetzt sind, sieht der Kunde im Bundle ein Laufzeit-Dropdown und der Preis wechselt.</p>
                             </div>
 
                             <!-- NEU: Optionen -->
@@ -2162,6 +2382,10 @@
                                     <label class="flex items-center space-x-2 cursor-pointer bg-white p-2 rounded border hover:bg-gray-50 transition">
                                         <input type="checkbox" id="bundleOptionTV" name="bundleOptionTV" class="h-4 w-4 text-blue-600 rounded">
                                         <span class="text-sm font-medium">📺 Inkl. o2 TV</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 cursor-pointer bg-white p-2 rounded border hover:bg-gray-50 transition">
+                                        <input type="checkbox" id="bundleHasSim" name="bundleHasSim" class="h-4 w-4 text-blue-600 rounded" checked>
+                                        <span class="text-sm font-medium">💳 SIM-Karte enthalten (SIM-Bild automatisch)</span>
                                     </label>
                                     <div class="flex-grow">
                                         <input type="text" id="bundleOptionCustom" name="bundleOptionCustom" placeholder="Weitere Option (z.B. Netflix, Napster...)" class="block w-full text-sm rounded-md border-gray-300 shadow-sm p-2 border">
@@ -2216,15 +2440,9 @@
                         </div>
                     </form>
                 </div>
-                
-                <h4 class="text-lg font-bold text-gray-800">Aktuelle Bundles</h4>
-                <div id="admin-bundle-list" class="space-y-4">
-                    <div class="text-center text-gray-500 p-4">Lade Bundles...</div>
-                </div>
             </div>
-            
-            
-            <!-- PROMOTIONS VERWALTUNG (Jetzt oben) -->
+
+<!-- PROMOTIONS VERWALTUNG (Jetzt oben) -->
             <h3 class="text-xl font-bold text-blue-600 pt-6 border-t border-gray-300">Geräte-Aktionseingabe</h3>
 
             <!-- Eingabeformular -->
@@ -2424,19 +2642,8 @@
                 </form>
             </div>
 
-            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2 mt-10">Verwaltung bestehender Geräte-Aktionen</h2>
             
-            <!-- Filter und Suchfeld -->
-            <div id="admin-search-container" class="mb-4">
-                <input type="text" id="admin-search" placeholder="Suche nach Gerät oder Anbieter..." class="w-full p-2 border rounded shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" oninput="filterAdminPromotions()">
-            </div>
-            
-            <!-- Liste der Aktionen -->
-            <div id="admin-promotion-list" class="space-y-4">
-                <div class="text-center text-gray-500 p-4">Lade Aktionen...</div>
-            </div>
-
-            <!-- PDF Upload Section -->
+<!-- PDF Upload Section -->
             <div id="pdf-upload-section" class="mt-12 pt-6 border-t-2 border-gray-300">
                 <h3 class="text-xl font-bold text-gray-800 mb-4">PDF Aktionsübersicht verwalten</h3>
                 <div class="bg-white p-6 rounded-xl shadow-lg flex items-center justify-between">
@@ -2451,7 +2658,8 @@
                 <div id="admin-pdf-preview" class="mt-6"></div>
             </div>
             
-            <!-- DATEN BACKUP SECTION (NEU) -->
+            
+<!-- DATEN BACKUP SECTION (NEU) -->
             <div id="data-backup-section" class="mt-12 pt-6 border-t-2 border-gray-300">
                 <h3 class="text-xl font-bold text-yellow-600 mb-4">💾 Daten-Backup & Wiederherstellung</h3>
                 <div class="bg-white p-6 rounded-xl shadow-lg space-y-4">
@@ -2472,7 +2680,8 @@
             </div>
 
 
-            <!-- INCENTIVES VERWALTUNG (Jetzt unten) -->
+            
+<!-- INCENTIVES VERWALTUNG (Jetzt unten) -->
             <div class="space-y-6 pt-10 border-t-2 border-gray-300 mt-12">
                 <h3 class="text-xl font-bold text-purple-700">Incentive Verwaltung</h3>
                 <div class="bg-white p-6 rounded-xl shadow-lg">
@@ -2514,14 +2723,81 @@
                         </div>
                     </form>
                 </div>
-                
-                <h4 class="text-lg font-bold text-gray-800">Bestehende Incentives</h4>
-                <div id="admin-incentive-list" class="space-y-4">
-                    <div class="text-center text-gray-500 p-4">Lade Incentives...</div>
+            </div>
+
                 </div>
             </div>
 
-        </section>
+            <!-- ADMIN: Übersichten (unten) -->
+            <div class="pt-2">
+                <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Übersichten</h2>
+
+                    <!-- Tabs -->
+                    <div class="w-full md:w-auto">
+                        <div class="inline-flex flex-wrap items-center gap-2 bg-white border rounded-xl shadow-sm p-2">
+                            <button type="button" class="admin-tab-btn px-3 py-2 rounded-lg text-sm font-semibold border transition" data-tab="push">
+                                💰 Push <span id="admin-tab-count-push" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-gray-100 border">0</span>
+                            </button>
+                            <button type="button" class="admin-tab-btn px-3 py-2 rounded-lg text-sm font-semibold border transition" data-tab="bundle">
+                                📦 Bundles <span id="admin-tab-count-bundle" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-gray-100 border">0</span>
+                            </button>
+                            <button type="button" class="admin-tab-btn px-3 py-2 rounded-lg text-sm font-semibold border transition" data-tab="promotions">
+                                📋 Geräte <span id="admin-tab-count-promotions" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-gray-100 border">0</span>
+                            </button>
+                            <button type="button" class="admin-tab-btn px-3 py-2 rounded-lg text-sm font-semibold border transition" data-tab="incentives">
+                                ⭐ Incentives <span id="admin-tab-count-incentives" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-gray-100 border">0</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panels -->
+                <div class="space-y-6">
+
+                    <div class="admin-tab-panel" data-tab-panel="push">
+                        <div class="bg-white rounded-xl shadow-lg border p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-lg font-bold text-green-700">💰 Push Provisionen</h3>
+                            </div>
+                            <div id="admin-push-list" class="space-y-4"><div class="text-center text-gray-500 p-4">Lade Push Provisionen...</div></div>
+                        </div>
+                    </div>
+
+                    <div class="admin-tab-panel hidden" data-tab-panel="bundle">
+                        <div class="bg-white rounded-xl shadow-lg border p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-lg font-bold text-blue-900">📦 o2 Bundle Angebote</h3>
+                            </div>
+                            <div id="admin-bundle-list" class="space-y-4"><div class="text-center text-gray-500 p-4">Lade Bundles...</div></div>
+                        </div>
+                    </div>
+
+                    <div class="admin-tab-panel hidden" data-tab-panel="promotions">
+                        <div class="bg-white rounded-xl shadow-lg border p-4">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                                <h3 class="text-lg font-bold text-blue-700">📋 Geräte-Aktionen</h3>
+                                <div id="admin-search-container" class="w-full md:w-96">
+                                    <input type="text" id="admin-search" placeholder="Suche (Gerät, Anbieter...)" class="w-full p-2 border rounded shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" oninput="filterAdminPromotions()">
+                                </div>
+                            </div>
+                            <div id="admin-promotion-list" class="space-y-4"><div class="text-center text-gray-500 p-4">Lade Aktionen...</div></div>
+                        </div>
+                    </div>
+
+                    <div class="admin-tab-panel hidden" data-tab-panel="incentives">
+                        <div class="bg-white rounded-xl shadow-lg border p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-lg font-bold text-purple-700">⭐ Incentives</h3>
+                            </div>
+                            <div id="admin-incentive-list" class="space-y-4"><div class="text-center text-gray-500 p-4">Lade Incentives...</div></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+</section>
 
 
         <!-- 2. BENUTZER-ANSICHT (Kundenansicht) -->
@@ -2564,7 +2840,8 @@
             <!-- BUNDLES ANZEIGE (VERSCHOBEN NACH UNTEN) -->
             <div class="mb-12 hidden" id="bundle-section-header">
                 <h3 class="text-2xl font-bold text-blue-900 mb-4 border-b pb-2">📦 o2 Bundle Angebote</h3>
-                <div id="user-bundle-list" class="">
+                <!-- Grid wie bei den Aktionen: 3 Kacheln nebeneinander (Desktop) -->
+                <div id="user-bundle-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <!-- Wird per JS gefüllt -->
                 </div>
             </div>
