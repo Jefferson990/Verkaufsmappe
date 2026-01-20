@@ -11,6 +11,8 @@
     <!-- Wichtig: GitHub Pages ist statisch. "Speichern im Hosting" geht nur ueber eine Datenbank (Firestore). -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <!-- Auth (empfohlen fuer sichere Firestore Rules: request.auth != null) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <!-- Konfiguriere Tailwind für die Inter-Schriftart -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
@@ -355,6 +357,21 @@
                 }
                 __firebaseApp = window.firebase.apps?.length ? window.firebase.app() : window.firebase.initializeApp(firebaseConfig);
                 __db = window.firebase.firestore();
+
+                // OPTIONAL (empfohlen): Anonymous Auth, damit sichere Firestore Rules funktionieren
+                // (Rules: allow read/write nur wenn request.auth != null)
+                try {
+                    if (window.firebase.auth) {
+                        const auth = window.firebase.auth();
+                        if (!auth.currentUser) {
+                            auth.signInAnonymously().catch((err) => {
+                                console.warn('Anonymous Auth fehlgeschlagen:', err);
+                            });
+                        }
+                    }
+                } catch (authErr) {
+                    console.warn('Auth Init Warnung:', authErr);
+                }
                 return true;
             } catch (e) {
                 console.warn('Cloud Sync init fehlgeschlagen:', e);
