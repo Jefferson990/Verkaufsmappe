@@ -885,6 +885,24 @@
             return s + ' €';
         }
 
+        function __stripEuro(val){
+            return String(val ?? '').replace('€','').trim();
+        }
+
+        function __getSelectedBundleTerm(bundleId){
+            const raw = localStorage.getItem('bundle_term_' + bundleId);
+            const t = parseInt(raw || '24', 10);
+            return (t === 36 || t === 24) ? t : 24;
+        }
+
+        function __getBundlePriceForTerm(b, term){
+            const p24 = String(b?.preis24 ?? b?.angebotspreis ?? '').trim();
+            const p36 = String(b?.preis36 ?? '').trim();
+            // Falls Preis36 fehlt, fallback auf Preis24
+            const chosen = (term === 36 ? (p36 || p24) : (p24 || p36)) || '';
+            return __stripEuro(chosen);
+        }
+
         function __buildDetailsHTMLFromText(text) {
             const raw = String(text ?? '').replace(/\r/g, '').trim();
             if (!raw) return '';
@@ -921,6 +939,10 @@
             const b = bundle || window.__ACTIVE_BUNDLE_FOR_TRANSFER;
             if (!b) return;
 
+
+            const __term = __getSelectedBundleTerm(b.id);
+            const __preisNumeric = __getBundlePriceForTerm(b, __term);
+            const __preisWithEuro = __normalizeEuro(__preisNumeric);
             const images = Array.isArray(b.images) ? b.images.filter(Boolean).slice(0, 2) : [];
             const badges = __extractBadgesFromBundle(b);
             const detailsHTML = __buildDetailsHTMLFromText(b.rechnungsweg || '');
@@ -929,7 +951,9 @@
                 type: 'BUNDLE_DATA_TRANSFER',
                 titel: b.titel || 'Bundle',
                 tarifName: b.tarifName || '',
-                preis: __normalizeEuro(b.angebotspreis || ''),
+                laufzeit: (__term + ' Monate'),
+                term: __term,
+                preis: __preisWithEuro,
                 detailsHTML: detailsHTML,
                 badges: badges,
                 validUntil: b.end || '',
@@ -939,7 +963,7 @@
                 isBundle: true,
                 geraet: b.titel || 'Bundle',
                 tarif: b.tarifName || '',
-                angebotspreis: b.angebotspreis || '',
+                angebotspreis: __preisNumeric,
                 bild: images[0] || '',
 
                 // Backward-Compat
@@ -958,7 +982,7 @@
         // Empfängt Anfrage vom PencilSelling (BundleModal) und antwortet mit BUNDLE_DATA_TRANSFER.
         window.addEventListener('message', (e) => {
             const d = e.data || {};
-            if (d && d.type === 'REQUEST_BUNDLE_SCREENSHOT') {
+            if (d && (d.type === 'REQUEST_BUNDLE_SCREENSHOT' || d.type === 'REQUEST_BUNDLE_DATA_TRANSFER' || d.type === 'REQUEST_BUNDLE_DATA' || d.type === 'EXPORT_BUNDLE_DATA')) {
                 // Wir senden bewusst Daten (HTML) statt Screenshot.
                 sendBundleDataToParent();
             }
