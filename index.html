@@ -1374,7 +1374,7 @@ function sendBundleDataToParent(bundle){
   const rawImages=Array.isArray(b.images)?b.images.filter(Boolean):[];
   const includeSim=typeof b.hasSim==='boolean'?b.hasSim:true;
   const images=(includeSim?rawImages.concat([FIXED_SIM_IMAGE_DATAURI]):rawImages).filter(Boolean).slice(0,3);
-  const payload={type:'BUNDLE_DATA_TRANSFER',titel:b.titel||'Bundle',tarifName:b.tarifName||'',preis:__normalizeEuro(b.angebotspreis||''),detailsHTML:__buildDetailsHTMLFromText(b.rechnungsweg||''),badges:__extractBadgesFromBundle(b),validUntil:b.end||'',images,isBundle:true,geraet:b.titel||'Bundle',tarif:b.tarifName||'',angebotspreis:b.angebotspreis||'',bild:images[0]||'',bezeichnung:b.titel||'Bundle',artikelName:b.tarifName||'',bildUrl:images[0]||''};
+  const payload={type:'BUNDLE_DATA_TRANSFER',titel:b.titel||'Bundle',tarifName:b.tarifName||'',preis:__normalizeEuro(b.angebotspreis||b.preis24||''),preis24:b.preis24||b.angebotspreis||'',preis36:b.preis36||'',einmalkosten:b.einmalkosten||'',show24:b.show24!==false,show36:!!b.show36,detailsHTML:__buildDetailsHTMLFromText(b.rechnungsweg||''),badges:__extractBadgesFromBundle(b),validUntil:b.end||'',images,isBundle:true,geraet:b.titel||'Bundle',tarif:b.tarifName||'',angebotspreis:b.angebotspreis||b.preis24||'',bild:images[0]||'',bezeichnung:b.titel||'Bundle',artikelName:b.tarifName||'',bildUrl:images[0]||'',optionTV:!!b.optionTV,optionOnlineSchutz:!!b.optionOnlineSchutz,optionCustom:b.optionCustom||''};
   if(window.parent&&window.parent!==window)window.parent.postMessage(payload,'*');
 }
 window.addEventListener('message',e=>{const d=e.data||{};if(d&&['REQUEST_BUNDLE_SCREENSHOT','REQUEST_BUNDLE_DATA_TRANSFER','REQUEST_BUNDLE_DATA','EXPORT_BUNDLE_DATA'].includes(d.type))sendBundleDataToParent();});
