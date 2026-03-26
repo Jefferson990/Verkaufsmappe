@@ -1096,7 +1096,8 @@ const FIXED_SIM_IMAGE_DATAURI = 'data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns
 const BUNDLE_CANVAS_CATEGORIES = [
   {key:'canvas1',label:'1. Hardware, Anbieter & Nutzung'},
   {key:'canvas2',label:'2. Haushalt und weitere Produkte'},
-  {key:'canvas3',label:'3. Fernsehen & Wi-Fi'}
+  {key:'canvas3',label:'3. Fernsehen & Wi-Fi'},
+  {key:'canvas4',label:'4. Netzwerk (Router & WLAN)'}
 ];
 const FIXED_BUNDLE_SLOTS = [
   {id:'hw-01',categoryKey:'canvas1',label:'Canvas 1 - Angebot 1'},
@@ -1107,7 +1108,14 @@ const FIXED_BUNDLE_SLOTS = [
   {id:'home-03',categoryKey:'canvas2',label:'Canvas 2 - Angebot 3'},
   {id:'tv-01',categoryKey:'canvas3',label:'Canvas 3 - Angebot 1'},
   {id:'tv-02',categoryKey:'canvas3',label:'Canvas 3 - Angebot 2'},
-  {id:'tv-03',categoryKey:'canvas3',label:'Canvas 3 - Angebot 3'}
+  {id:'tv-03',categoryKey:'canvas3',label:'Canvas 3 - Angebot 3'},
+  {id:'net-router-dsl',  categoryKey:'canvas4',label:'Netzwerk - Router DSL/VDSL'},
+  {id:'net-router-cable',categoryKey:'canvas4',label:'Netzwerk - Router Kabel'},
+  {id:'net-router-fiber',categoryKey:'canvas4',label:'Netzwerk - Router Glasfaser'},
+  {id:'net-router-5g',   categoryKey:'canvas4',label:'Netzwerk - Router 5G/LTE'},
+  {id:'net-mesh',        categoryKey:'canvas4',label:'Netzwerk - Mesh-System'},
+  {id:'net-repeater',    categoryKey:'canvas4',label:'Netzwerk - WLAN-Repeater'},
+  {id:'net-powerline',   categoryKey:'canvas4',label:'Netzwerk - Powerline-Adapter'}
 ];
 const __getCategoryLabel = k => (BUNDLE_CANVAS_CATEGORIES.find(c=>c.key===k)||{}).label||k||'';
 const __getSlotMeta = id => FIXED_BUNDLE_SLOTS.find(s=>s.id===id)||null;
@@ -1599,7 +1607,16 @@ function renderUserView(promoList,incList,pushList,bundleList,isSingle=false){
   const bundleEl=document.getElementById('user-bundle-list');
   const bundleSec=document.getElementById('bundle-section-header');
   if(activeBundles.length){
-    bundleEl.innerHTML=activeBundles.map(b=>{
+    // Gruppiere nach Kategorie für saubere Anzeige
+    const bundlesByCategory = {};
+    BUNDLE_CANVAS_CATEGORIES.forEach(c => { bundlesByCategory[c.key] = []; });
+    activeBundles.forEach(b => {
+      const cat = b.categoryKey || 'canvas1';
+      if(!bundlesByCategory[cat]) bundlesByCategory[cat] = [];
+      bundlesByCategory[cat].push(b);
+    });
+
+    const renderBundleCard = b => {
       const rawImages=Array.isArray(b.images)?b.images.filter(Boolean):[];
       const inclSim=typeof b.hasSim==='boolean'?b.hasSim:true;
       const effImgs=inclSim?rawImages.concat([FIXED_SIM_IMAGE_DATAURI]):rawImages;
@@ -1624,7 +1641,34 @@ function renderUserView(promoList,incList,pushList,bundleList,isSingle=false){
           ${b.gutscheincode?`<div style="background:#fef9c3;border:1px dashed #f59e0b;border-radius:8px;padding:10px;text-align:center;font-size:13px;font-weight:700;color:#854d0e;cursor:pointer;font-family:monospace" onclick="copyToClipboard('${esc(b.gutscheincode)}')">🎟️ ${esc(b.gutscheincode)} <span style="font-family:sans-serif;font-weight:400;font-size:11px;opacity:.7">(klicken zum Kopieren)</span></div>`:''}
         </div>
       </div>`;
-    }).join('');
+    };
+
+    // Canvas 1-3: normal (canvas4 = Netzwerk nur für Dashboard, NICHT in Kundenansicht)
+    const mainBundles = activeBundles.filter(b => b.categoryKey !== 'canvas4');
+    const netBundles  = []; // Netzwerk-Kategorie absichtlich ausgeblendet (nur Dashboard-Verknüpfung)
+
+    bundleEl.innerHTML = mainBundles.map(renderBundleCard).join('');
+
+    // Canvas 4 Netzwerk: eigene Sektion
+    let netSecEl = document.getElementById('net-bundle-section');
+    if(!netSecEl){
+      netSecEl = document.createElement('div');
+      netSecEl.id = 'net-bundle-section';
+      netSecEl.style.marginTop = '32px';
+      bundleSec && bundleSec.parentNode && bundleSec.parentNode.insertBefore(netSecEl, bundleSec.nextSibling);
+    }
+    if(netBundles.length){
+      netSecEl.innerHTML = `
+        <div class="section-divider" style="margin-top:16px">
+          <div class="section-icon" style="background:#dbeafe;font-size:18px">📶</div>
+          <h3 style="font-size:18px;font-weight:800;color:#1e293b">Netzwerk — Router & WLAN</h3>
+        </div>
+        <div class="cards-grid-2">${netBundles.map(renderBundleCard).join('')}</div>`;
+      netSecEl.style.display = '';
+    } else {
+      netSecEl.style.display = 'none';
+    }
+
     if(bundleSec)bundleSec.classList.remove('hidden');
     bundleEl.classList.remove('hidden');
   }else{bundleEl.innerHTML='';if(bundleSec)bundleSec.classList.add('hidden');bundleEl.classList.add('hidden');}
