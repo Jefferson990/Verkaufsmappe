@@ -202,28 +202,182 @@ textarea.form-input { resize:vertical; min-height:80px; }
   /* Print-Only-Elemente einblenden */
   .print-only { display: block !important; }
 
-  /* ---- SEITE 1: COVER ---- */
+  /* ---- SEITE 1: COVER (volle Seite) ---- */
   .print-cover {
+    position: relative;
     display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    background: linear-gradient(135deg, #1e3a8a, #2563eb) !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+    background: linear-gradient(145deg, #0f1f4d 0%, #1e3a8a 45%, #2563eb 100%) !important;
     color: white !important;
-    padding: 16px 24px !important;
-    margin-bottom: 12px !important;
-    border-radius: 10px !important;
-    page-break-after: avoid !important;
+    padding: 50px 70px !important;
+    border-radius: 14px !important;
+    overflow: hidden !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    max-height: 178mm !important;
+    box-sizing: border-box !important;
+  }
+  .print-cover-bg-shape {
+    position: absolute !important;
+    border-radius: 50% !important;
+    background: rgba(255,255,255,0.07) !important;
+    width: 420px !important;
+    height: 420px !important;
+    top: -160px !important;
+    right: -120px !important;
+  }
+  .print-cover-bg-shape-2 {
+    width: 260px !important;
+    height: 260px !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: -120px !important;
+    left: -80px !important;
+    background: rgba(37,99,235,0.35) !important;
+  }
+  .print-cover-logo {
+    position: relative !important;
+    z-index: 1 !important;
+    background: rgba(255,255,255,0.16) !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    color: white !important;
+    font-weight: 800 !important;
+    font-size: 11pt !important;
+    letter-spacing: 0.05em !important;
+    padding: 6px 16px !important;
+    border-radius: 100px !important;
+    margin-bottom: 28px !important;
+    display: inline-block !important;
+  }
+  .print-cover-month {
+    position: relative !important;
+    z-index: 1 !important;
+    font-size: 15pt !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.18em !important;
+    opacity: 0.8 !important;
+    margin-bottom: 4px !important;
   }
   .print-cover-title {
-    font-size: 26pt !important;
+    position: relative !important;
+    z-index: 1 !important;
+    font-size: 46pt !important;
     font-weight: 900 !important;
-    letter-spacing: -1px !important;
-    margin: 0 24px 0 0 !important;
+    letter-spacing: -1.5px !important;
+    line-height: 1.05 !important;
+    margin: 0 0 6px 0 !important;
   }
-  .print-cover-meta {
+  .print-cover-year {
+    position: relative !important;
+    z-index: 1 !important;
+    font-size: 20pt !important;
+    font-weight: 300 !important;
+    opacity: 0.75 !important;
+    margin-bottom: 26px !important;
+  }
+  .print-cover-divider {
+    position: relative !important;
+    z-index: 1 !important;
+    width: 70px !important;
+    height: 4px !important;
+    background: #fff !important;
+    border-radius: 4px !important;
+    margin-bottom: 26px !important;
+    opacity: 0.85 !important;
+  }
+  .print-cover-stats {
+    position: relative !important;
+    z-index: 1 !important;
+    display: flex !important;
+    gap: 36px !important;
+    margin-bottom: 8px !important;
+  }
+  .print-cover-stats .stat-num {
+    font-size: 22pt !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+  }
+  .print-cover-stats .stat-label {
+    font-size: 8pt !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    opacity: 0.75 !important;
+    margin-top: 3px !important;
+  }
+  .print-cover-footer {
+    position: absolute !important;
+    bottom: 36px !important;
+    left: 70px !important;
+    right: 70px !important;
+    z-index: 1 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    font-size: 8pt !important;
+    opacity: 0.75 !important;
+    border-top: 1px solid rgba(255,255,255,0.25) !important;
+    padding-top: 12px !important;
+  }
+
+  /* ---- SEITE 2: EIGENE INHALTSVERZEICHNIS-SEITE ---- */
+  .print-toc-page {
+    display: block !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-before: always !important;
+    break-before: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    padding: 14px 6px !important;
+    min-height: 170mm !important;
+  }
+  .print-toc-page-title {
+    font-size: 22pt !important;
+    font-weight: 900 !important;
+    color: #0f172a !important;
+    margin-bottom: 4px !important;
+  }
+  .print-toc-page-sub {
     font-size: 9pt !important;
-    opacity: 0.85;
+    color: #64748b !important;
+    margin-bottom: 22px !important;
   }
+  .print-toc-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+  .print-toc-link {
+    display: flex !important;
+    flex: 0 0 31% !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-left: 5px solid #1d4ed8 !important;
+    border-radius: 8px !important;
+    padding: 14px 18px !important;
+    font-size: 12pt !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    box-sizing: border-box !important;
+  }
+  .print-toc-link .print-toc-count {
+    font-size: 9pt !important;
+    font-weight: 700 !important;
+    background: #1d4ed8 !important;
+    color: white !important;
+    border-radius: 100px !important;
+    padding: 2px 10px !important;
+  }
+  .print-toc-link-navy { border-left-color: #1e3a8a !important; }
+
+  /* Alte inline TOC / Push-Header im Druck nicht mehr nötig (eigene Seite 2) */
+  #toc-container { display: none !important; }
 
   /* Section Dividers kompakt */
   .section-divider {
@@ -261,7 +415,7 @@ textarea.form-input { resize:vertical; min-height:80px; }
     border-radius: 6px !important;
   }
 
-  /* ---- SEITE 2 BEGINN: Geräte-Header + TOC + Bundles zusammen ---- */
+  /* ---- SEITE 3 BEGINN: Geräte-Header + Bundles ---- */
   #device-actions-header {
     page-break-before: always !important;
     break-before: page !important;
@@ -270,31 +424,7 @@ textarea.form-input { resize:vertical; min-height:80px; }
     margin-bottom: 8px !important;
   }
 
-  /* TOC kompakt */
-  #toc-container {
-    margin-bottom: 10px !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-  #toc-container > div {
-    padding: 10px 14px !important;
-    border-radius: 8px !important;
-  }
-  #toc-container .text-xs {
-    font-size: 7.5pt !important;
-    margin-bottom: 6px !important;
-  }
-  #toc-grid {
-    grid-template-columns: repeat(6, 1fr) !important;
-    gap: 5px !important;
-  }
-  .toc-link {
-    padding: 5px 8px !important;
-    font-size: 8pt !important;
-    border-radius: 5px !important;
-  }
-
-  /* ---- BUNDLES: direkt nach TOC, keine neue Seite ---- */
+  /* ---- BUNDLES: direkt nach Geräte-Header, keine neue Seite ---- */
   #bundle-section-header {
     break-before: avoid !important;
     page-break-before: avoid !important;
@@ -382,24 +512,26 @@ textarea.form-input { resize:vertical; min-height:80px; }
     margin-bottom: 4px !important;
   }
 
-  /* ---- PROMOTIONS: ab Seite 3 ---- */
+  /* ---- PROMOTIONS: direkt nach Geräte-Header/Bundles, kein zusätzlicher Seitenumbruch ---- */
   #user-view-content {
     margin-top: 8px !important;
-    break-before: page !important;
-    page-break-before: always !important;
   }
-  /* Jede Anbieter-Gruppe: Seitenumbruch davor erlaubt */
+  /* Jede Anbieter-Gruppe: darf sich über mehrere Seiten verteilen, nur der Header soll nicht alleine am Seitenende stehen */
   .anbieter-section {
-    margin-top: 10px !important;
-    break-inside: avoid !important;
+    margin-top: 14px !important;
   }
   .anbieter-header {
     padding: 7px 14px !important;
     font-size: 10pt !important;
     border-radius: 6px 6px 0 0 !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
   }
   .anbieter-section > div:last-child {
-    padding: 10px !important;
+    padding: 10px 0 0 0 !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
   }
 
   /* Karten-Grid: 4 Spalten im Querformat */
@@ -687,8 +819,14 @@ textarea.form-input { resize:vertical; min-height:80px; }
               <input type="date" id="aktionsbeginn" name="aktionsbeginn" class="form-input" required>
             </div>
             <div>
-              <label class="form-label">Aktionsende</label>
-              <input type="date" id="aktionsende" name="aktionsende" class="form-input" required>
+              <label class="form-label">Gültig bis</label>
+              <div class="flex items-center gap-2">
+                <input type="date" id="aktionsende" name="aktionsende" class="form-input">
+                <div class="flex flex-col items-center flex-shrink-0">
+                  <input type="checkbox" id="dauerhaftAktiv" name="dauerhaftAktiv" onchange="toggleDauerhaftAktiv(this.checked)" class="w-4 h-4 accent-blue-600">
+                  <label for="dauerhaftAktiv" class="text-xs text-slate-400 whitespace-nowrap">dauerhaft</label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -933,11 +1071,25 @@ textarea.form-input { resize:vertical; min-height:80px; }
 
   <!-- Print Cover (only visible in print) -->
   <div class="hidden print-only print-cover">
-    <div style="font-size:28pt;font-weight:900;letter-spacing:-1px;margin-right:24px">Aktionsmappe</div>
-    <div>
-      <div style="font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em;opacity:.7;margin-bottom:3px">HeTec GmbH · Nur für Mitarbeiter · Vertraulich</div>
-      <div id="print-cover-date" style="font-size:9pt;font-weight:600"></div>
+    <div class="print-cover-bg-shape"></div>
+    <div class="print-cover-bg-shape print-cover-bg-shape-2"></div>
+    <div class="print-cover-logo">HeTec</div>
+    <div class="print-cover-month" id="print-cover-month">Juni</div>
+    <div class="print-cover-title">Verkaufsmappe</div>
+    <div class="print-cover-year" id="print-cover-year">2026</div>
+    <div class="print-cover-divider"></div>
+    <div class="print-cover-stats" id="print-cover-stats"></div>
+    <div class="print-cover-footer">
+      <div>HeTec GmbH &middot; Nur für Mitarbeiter &middot; Vertraulich</div>
+      <div id="print-cover-date" style="font-weight:700"></div>
     </div>
+  </div>
+
+  <!-- Print TOC Page (page 2, only visible in print) -->
+  <div class="hidden print-only print-toc-page" id="print-toc-page">
+    <div class="print-toc-page-title">Inhaltsverzeichnis</div>
+    <div class="print-toc-page-sub">Schnellzugriff auf alle aktuellen Aktionen</div>
+    <div id="print-toc-grid" class="print-toc-grid"></div>
   </div>
 
   <!-- Header row -->
@@ -1146,7 +1298,7 @@ function populateBundleSlotOptions(){
 
 // ===== HELPERS =====
 const generateId = () => Date.now().toString(36)+Math.random().toString(36).substr(2);
-const isExpired = d => { if(!d)return true; const[y,m,day]=d.split('-').map(Number); return new Date(Date.UTC(y,m-1,day))<new Date(new Date().toDateString()); };
+const isExpired = (d,dauerhaft) => { if(dauerhaft)return false; if(!d)return true; const[y,m,day]=d.split('-').map(Number); return new Date(Date.UTC(y,m-1,day))<new Date(new Date().toDateString()); };
 const calculateMargin = (ek,vk,noEk,noVk) => { if(noEk||noVk)return null; const e=parseFloat(ek),v=parseFloat(vk); if(isNaN(e)||isNaN(v))return'N/A'; return((v/1.19)-e).toFixed(2); };
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -1163,6 +1315,12 @@ window.togglePriceInput = (type,checked) => {
   const el=document.getElementById(id); if(!el)return;
   el.value=''; el.disabled=checked;
   updateMarginPreview();
+};
+
+window.toggleDauerhaftAktiv = (checked) => {
+  const el=document.getElementById('aktionsende'); if(!el)return;
+  el.disabled=checked;
+  if(checked){ el.removeAttribute('required'); } else { el.setAttribute('required','required'); }
 };
 
 window.toggleFreeText = (override) => {
@@ -1452,7 +1610,7 @@ window.setKategorie = val => {
 
 function applyFilterAndSort() {
   const searchTerm = (document.getElementById('user-search')?.value||'').toLowerCase();
-  let filteredPromos = promotions.filter(p => !isExpired(p.aktionsende));
+  let filteredPromos = promotions.filter(p => !isExpired(p.aktionsende,p.dauerhaftAktiv));
   let filteredBundles = bundles.filter(b => b.active===true && !b.legacy && !isExpired(b.end));
   let filteredPush = pushProvisions.filter(p => !isExpired(p.end));
 
@@ -1546,14 +1704,14 @@ function renderAdminPromotionList(list){
   if(!list.length){el.innerHTML='<p class="text-center text-slate-400 py-6 text-sm">Keine Aktionen gefunden.</p>';return;}
   el.innerHTML=list.map(p=>{
     const m=calculateMargin(p.einkaufspreis,p.verkaufspreis,p.noEinkaufspreis,p.noVerkaufspreis);
-    const exp=isExpired(p.aktionsende);
+    const exp=isExpired(p.aktionsende,p.dauerhaftAktiv);
     const ez=[p.einmalzahlungXL?`XL: ${p.einmalzahlungXL}`:null,p.einmalzahlungL?`L: ${p.einmalzahlungL}`:null,p.einmalzahlungM?`M: ${p.einmalzahlungM}`:null,p.einmalzahlungS?`S: ${p.einmalzahlungS}`:null].filter(Boolean).join(' | ');
     const mDisp=m!==null?`<span class="${parseFloat(m)>=0?'text-green-600':'text-red-600'} font-bold">${m} €</span>`:'<span class="text-slate-400">n.v.</span>';
     const ek=p.noEinkaufspreis?'n.v.':`${parseFloat(p.einkaufspreis).toFixed(2)}€`;
     const vk=p.noVerkaufspreis?'n.v.':`${parseFloat(p.verkaufspreis).toFixed(2)}€`;
       const stoererPill = p.stoerer ? {highlight:`<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b">⭐ Highlight</span>`, flash:`<span class="badge" style="background:#fee2e2;color:#991b1b;border:1px solid #dc2626">⚡ Flash Sale</span>`, abverkauf:`<span class="badge" style="background:#ede9fe;color:#5b21b6;border:1px solid #7c3aed">🔥 Abverkauf</span>`}[p.stoerer]||'' : '';
     return`<div class="list-item ${exp?'list-item-border-red':'list-item-border-blue'}">
-      <div><div class="font-semibold text-slate-800 text-sm flex flex-wrap items-center gap-2">${esc(p.geraetebezeichnung)} (${esc(p.anbieter)}) ${exp?'<span class="badge badge-red">ABGELAUFEN</span>':''} ${stoererPill}</div><div class="text-xs text-slate-500 mt-0.5">EK: ${ek} | VK: ${vk} | Marge: ${mDisp}</div>${ez?`<div class="text-xs text-slate-400 mt-0.5">EZ Mobile: ${esc(ez)}</div>`:''}<div class="text-xs text-slate-400">${esc(p.aktionsbeginn)} bis ${esc(p.aktionsende)}</div></div>
+      <div><div class="font-semibold text-slate-800 text-sm flex flex-wrap items-center gap-2">${esc(p.geraetebezeichnung)} (${esc(p.anbieter)}) ${exp?'<span class="badge badge-red">ABGELAUFEN</span>':''} ${p.dauerhaftAktiv?'<span class="badge badge-green">♾️ Dauerhaft aktiv</span>':''} ${stoererPill}</div><div class="text-xs text-slate-500 mt-0.5">EK: ${ek} | VK: ${vk} | Marge: ${mDisp}</div>${ez?`<div class="text-xs text-slate-400 mt-0.5">EZ Mobile: ${esc(ez)}</div>`:''}<div class="text-xs text-slate-400">${esc(p.aktionsbeginn)}${p.dauerhaftAktiv?' – läuft dauerhaft':` bis ${esc(p.aktionsende)}`}</div></div>
       <div class="flex gap-2 flex-shrink-0 flex-wrap justify-end">${exp?`<button onclick='renewPromotion("${p.id}")' class="btn btn-purple btn-sm">30 Tage verlängern</button>`:`<button onclick='editPromotion("${p.id}")' class="btn btn-yellow btn-sm">Bearbeiten</button>`}<button onclick='deletePromotion("${p.id}")' class="btn btn-red btn-sm">Löschen</button></div>
     </div>`;
   }).join('');
@@ -1677,13 +1835,13 @@ function renderUserView(promoList,incList,pushList,bundleList,isSingle=false){
   const tocEl=document.getElementById('toc-container');
   const viewEl=document.getElementById('user-view-content');
   if(isSingle){viewEl.innerHTML='';if(tocEl)tocEl.innerHTML='';return;}
-  const activePromos=promoList.filter(p=>!isExpired(p.aktionsende));
-  if(!activePromos.length){viewEl.innerHTML='<p class="text-center text-slate-400 py-10 text-base">Aktuell keine Geräte-Aktionen verfügbar.</p>';if(tocEl){const tg=document.getElementById('toc-grid');if(tg)tg.innerHTML='<div class="col-span-full text-center text-slate-400 py-4 text-sm">Keine Aktionen.</div>';}return;}
+  const activePromos=promoList.filter(p=>!isExpired(p.aktionsende,p.dauerhaftAktiv));
+  if(!activePromos.length){viewEl.innerHTML='<p class="text-center text-slate-400 py-10 text-base">Aktuell keine Geräte-Aktionen verfügbar.</p>';if(tocEl){const tg=document.getElementById('toc-grid');if(tg)tg.innerHTML='<div class="col-span-full text-center text-slate-400 py-4 text-sm">Keine Aktionen.</div>';}const ptgEmpty=document.getElementById('print-toc-grid');if(ptgEmpty)ptgEmpty.innerHTML='<div class="col-span-full text-center text-slate-400 py-4 text-sm">Keine Aktionen.</div>';const csEmpty=document.getElementById('print-cover-stats');if(csEmpty)csEmpty.innerHTML=`<div><div class="stat-num">0</div><div class="stat-label">Aktionen</div></div>`;return;}
 
   const grouped=activePromos.reduce((acc,p)=>{const a=p.anbieter||'Sonstige';if(!acc[a])acc[a]=[];acc[a].push(p);return acc;},{});
   const anbieterList=Object.keys(grouped).sort();
 
-  // TOC
+  // TOC (Bildschirm, inline)
   if(tocEl){
     const tg=document.getElementById('toc-grid');
     if(tg){
@@ -1692,6 +1850,28 @@ function renderUserView(promoList,incList,pushList,bundleList,isSingle=false){
       tocHtml+=anbieterList.map(a=>`<a href="#anbieter_${a.replace(/[^a-zA-Z0-9]/g,'_')}" class="toc-link">${esc(a)} (${grouped[a].length})</a>`).join('');
       tg.innerHTML=tocHtml||'<div class="col-span-full text-center text-slate-400 py-4 text-sm">Keine Anbieter.</div>';
     }
+  }
+
+  // TOC (Print, eigene Seite 2)
+  const ptg=document.getElementById('print-toc-grid');
+  if(ptg){
+    let pTocHtml='';
+    if(activeBundles.length)pTocHtml+=`<a href="#bundle-section-header" class="print-toc-link print-toc-link-navy">📦 Bundle Angebote <span class="print-toc-count">${activeBundles.length}</span></a>`;
+    pTocHtml+=anbieterList.map(a=>`<a href="#anbieter_${a.replace(/[^a-zA-Z0-9]/g,'_')}" class="print-toc-link">${esc(a)} <span class="print-toc-count">${grouped[a].length}</span></a>`).join('');
+    ptg.innerHTML=pTocHtml||'<div class="col-span-full text-center text-slate-400 py-4 text-sm">Keine Aktionen.</div>';
+  }
+
+  // Cover-Statistiken (Print Seite 1)
+  const coverStats=document.getElementById('print-cover-stats');
+  if(coverStats){
+    const totalAktionen=activePromos.length;
+    const totalAnbieter=anbieterList.length;
+    const totalBundles=activeBundles.length;
+    coverStats.innerHTML=`
+      <div><div class="stat-num">${totalAktionen}</div><div class="stat-label">Aktionen</div></div>
+      <div><div class="stat-num">${totalAnbieter}</div><div class="stat-label">Anbieter</div></div>
+      <div><div class="stat-num">${totalBundles}</div><div class="stat-label">Bundles</div></div>
+    `;
   }
 
   // Promotion groups
@@ -1716,7 +1896,7 @@ function renderUserView(promoList,incList,pushList,bundleList,isSingle=false){
         <div class="promo-card-body">
           <div style="font-size:17px;font-weight:800;color:#0f172a;line-height:1.2;margin-bottom:4px">${esc(p.geraetebezeichnung||'–')}</div>
           <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${esc(p.anbieter||'')}</div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">📅 ${esc(p.aktionsbeginn)} – ${esc(p.aktionsende)}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">${p.dauerhaftAktiv?'♾️ dauerhaft aktiv':`📅 ${esc(p.aktionsbeginn)} – ${esc(p.aktionsende)}`}</div>
           ${tariffs.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${tariffs.map(t=>`<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:#dbeafe;color:#1d4ed8">${t}</span>`).join('')}</div>`:''}
           <div style="font-size:12px;color:#374151;margin-bottom:10px">
             ${p.anschlussbefreiung?'<div>✅ Anschlussbefreiung</div>':''}
@@ -1835,14 +2015,16 @@ window.savePromotion=event=>{
   event.preventDefault();const form=event.target;
   let anbieter=form.anbieterSelect.value;if(anbieter==='Freiertext')anbieter=form.anbieterFreiertext.value;if(!anbieter){showMessage('Bitte Anbieter eingeben.',true);return;}
   if(!form.geraetebezeichnung.value){showMessage('Bitte Gerätebezeichnung eingeben.',true);return;}
+  const dauerhaftAktiv=form.dauerhaftAktiv.checked;
+  if(!dauerhaftAktiv && !form.aktionsende.value){showMessage('Bitte "Gültig bis" eingeben oder "dauerhaft" aktivieren.',true);return;}
   // Preise nur validieren wenn nicht n.v.
   if(!form.noEinkaufspreis.checked && (form.einkaufspreis.value===''||isNaN(parseFloat(form.einkaufspreis.value)))){showMessage('Bitte Einkaufspreis eingeben oder "n.v." aktivieren.',true);return;}
   if(!form.noVerkaufspreis.checked && (form.verkaufspreis.value===''||isNaN(parseFloat(form.verkaufspreis.value)))){showMessage('Bitte Verkaufspreis eingeben oder "n.v." aktivieren.',true);return;}
-  const data={id:form.dataset.editingId||generateId(),anbieter,geraetebezeichnung:form.geraetebezeichnung.value,aktionsbeginn:form.aktionsbeginn.value,aktionsende:form.aktionsende.value,einkaufspreis:parseFloat(form.einkaufspreis.value)||0,verkaufspreis:parseFloat(form.verkaufspreis.value)||0,noEinkaufspreis:form.noEinkaufspreis.checked,noVerkaufspreis:form.noVerkaufspreis.checked,einmalzahlungXL:form.einmalzahlungXL.value,einmalzahlungL:form.einmalzahlungL.value,einmalzahlungM:form.einmalzahlungM.value,einmalzahlungS:form.einmalzahlungS.value,einmalzahlungHomeXL:form.einmalzahlungHomeXL.value,einmalzahlungHomeL:form.einmalzahlungHomeL.value,einmalzahlungHomeM:form.einmalzahlungHomeM.value,einmalzahlungHomeS:form.einmalzahlungHomeS.value,mobile:form.mobile.checked,myhome:form.myhome.checked,data:form.data.checked,anschlussbefreiung:form.anschlussbefreiung.checked,zusatzpush:form.zusatzpush.checked,sonderprovision:form.sonderprovision.value,stoerer:form.stoerer?form.stoerer.value:'',bemerkung:form.bemerkung.value,bildUrl:form.bildUrl.value,hwBenefit24:form.hwBenefit24.value,hwBenefit36:form.hwBenefit36.value,createdAt:form.dataset.editingId?(promotions.find(p=>p.id===form.dataset.editingId)?.createdAt||new Date().toISOString()):new Date().toISOString()};
+  const data={id:form.dataset.editingId||generateId(),anbieter,geraetebezeichnung:form.geraetebezeichnung.value,aktionsbeginn:form.aktionsbeginn.value,aktionsende:form.aktionsende.value,dauerhaftAktiv,einkaufspreis:parseFloat(form.einkaufspreis.value)||0,verkaufspreis:parseFloat(form.verkaufspreis.value)||0,noEinkaufspreis:form.noEinkaufspreis.checked,noVerkaufspreis:form.noVerkaufspreis.checked,einmalzahlungXL:form.einmalzahlungXL.value,einmalzahlungL:form.einmalzahlungL.value,einmalzahlungM:form.einmalzahlungM.value,einmalzahlungS:form.einmalzahlungS.value,einmalzahlungHomeXL:form.einmalzahlungHomeXL.value,einmalzahlungHomeL:form.einmalzahlungHomeL.value,einmalzahlungHomeM:form.einmalzahlungHomeM.value,einmalzahlungHomeS:form.einmalzahlungHomeS.value,mobile:form.mobile.checked,myhome:form.myhome.checked,data:form.data.checked,anschlussbefreiung:form.anschlussbefreiung.checked,zusatzpush:form.zusatzpush.checked,sonderprovision:form.sonderprovision.value,stoerer:form.stoerer?form.stoerer.value:'',bemerkung:form.bemerkung.value,bildUrl:form.bildUrl.value,hwBenefit24:form.hwBenefit24.value,hwBenefit36:form.hwBenefit36.value,createdAt:form.dataset.editingId?(promotions.find(p=>p.id===form.dataset.editingId)?.createdAt||new Date().toISOString()):new Date().toISOString()};
   const changesLog=[];
   if(form.dataset.editingId){const old=promotions.find(p=>p.id===form.dataset.editingId);if(old){const op=parseFloat(old.verkaufspreis),np=parseFloat(data.verkaufspreis);if(!data.noVerkaufspreis&&!old.noVerkaufspreis){if(np<op)changesLog.push(`🔥 Preissturz: ${data.geraetebezeichnung} jetzt ${np.toFixed(2)} €!`);else if(np>op)changesLog.push(`📈 Preisanstieg: ${data.geraetebezeichnung} jetzt ${np.toFixed(2)} €.`);}}const i=promotions.findIndex(p=>p.id===form.dataset.editingId);if(i!==-1)promotions[i]=data;showMessage('Aktion aktualisiert!');}
   else{promotions.push(data);changesLog.push(`✨ Neu: ${data.geraetebezeichnung} (${data.anbieter}) für ${data.noVerkaufspreis?'Preis a.A.':`${parseFloat(data.verkaufspreis).toFixed(2)} €`}`);showMessage('Aktion gespeichert!');}
-  changesLog.forEach(l=>addRecentChange(l));saveData();form.reset();setStoerer('');delete form.dataset.editingId;document.getElementById('submit-btn').textContent='Aktion Speichern';toggleFreeText(false);togglePriceInput('EK',false);togglePriceInput('VK',false);
+  changesLog.forEach(l=>addRecentChange(l));saveData();form.reset();setStoerer('');delete form.dataset.editingId;document.getElementById('submit-btn').textContent='Aktion Speichern';toggleFreeText(false);togglePriceInput('EK',false);togglePriceInput('VK',false);toggleDauerhaftAktiv(false);
 };
 window.deletePromotion=id=>{if(!confirm('Aktion wirklich löschen?'))return;promotions=promotions.filter(p=>p.id!==id);saveData();showMessage('Aktion gelöscht.');};
 window.renewPromotion=id=>{const i=promotions.findIndex(p=>p.id===id);if(i===-1)return;const d=new Date();d.setDate(d.getDate()+30);const yy=d.getFullYear(),mm=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');promotions[i].aktionsende=`${yy}-${mm}-${dd}`;saveData();showMessage(`Verlängert bis ${dd}.${mm}.${yy}!`);};
@@ -1850,6 +2032,7 @@ window.editPromotion=id=>{
   const d=promotions.find(p=>p.id===id);if(!d)return;const f=document.getElementById('promotion-form');
   if(predefinedProviders.includes(d.anbieter)&&d.anbieter!=='Freiertext'){f.anbieterSelect.value=d.anbieter;f.anbieterFreiertext.value='';toggleFreeText(false);}else{f.anbieterSelect.value='Freiertext';f.anbieterFreiertext.value=d.anbieter;toggleFreeText(true);}
   f.geraetebezeichnung.value=d.geraetebezeichnung||'';f.aktionsbeginn.value=d.aktionsbeginn||'';f.aktionsende.value=d.aktionsende||'';
+  f.dauerhaftAktiv.checked=!!d.dauerhaftAktiv;toggleDauerhaftAktiv(!!d.dauerhaftAktiv);
   f.einkaufspreis.value=d.einkaufspreis||0;f.verkaufspreis.value=d.verkaufspreis||0;
   f.noEinkaufspreis.checked=!!d.noEinkaufspreis;f.noVerkaufspreis.checked=!!d.noVerkaufspreis;
   togglePriceInput('EK',!!d.noEinkaufspreis);togglePriceInput('VK',!!d.noVerkaufspreis);
@@ -1876,10 +2059,15 @@ window.renewIncentive=id=>{const i=incentives.findIndex(x=>x.id===id);if(i===-1)
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded',()=>{
-  // Set print date
-  const dt=new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
-  const pht=document.getElementById('print-header-title');if(pht)pht.textContent=`Aktionsmappe ${dt}`;
+  // Set print date + automatisch generierter Monat/Jahr fürs Titelblatt
+  const now=new Date();
+  const dt=now.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const monthName=now.toLocaleDateString('de-DE',{month:'long'});
+  const yearNum=now.getFullYear();
+  const pht=document.getElementById('print-header-title');if(pht)pht.textContent=`Verkaufsmappe ${monthName} ${yearNum}`;
   const pcd=document.getElementById('print-cover-date');if(pcd)pcd.textContent=`Stand: ${dt}`;
+  const pcm=document.getElementById('print-cover-month');if(pcm)pcm.textContent=monthName;
+  const pcy=document.getElementById('print-cover-year');if(pcy)pcy.textContent=yearNum;
 
   // Init tabs
   try{
