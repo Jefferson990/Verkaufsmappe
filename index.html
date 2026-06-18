@@ -1464,8 +1464,28 @@ function updateEmailButtonBadge(){
 }
 
 // ===== SWITCH VIEW =====
+const ADMIN_PASSWORD = 'HeTec2026!';
+
 window.switchView = () => {
-  const isAdmin=document.getElementById('view-toggle').checked;
+  const toggle=document.getElementById('view-toggle');
+  const wantsAdmin=toggle.checked;
+
+  if(wantsAdmin){
+    let unlocked=false;
+    try{unlocked=sessionStorage.getItem('ADMIN_UNLOCKED')==='1';}catch(e){}
+    if(!unlocked){
+      const pw=prompt('Bitte Admin-Passwort eingeben:');
+      if(pw===null){ toggle.checked=false; return; }
+      if(pw!==ADMIN_PASSWORD){
+        showMessage('Falsches Passwort.',true);
+        toggle.checked=false;
+        return;
+      }
+      try{sessionStorage.setItem('ADMIN_UNLOCKED','1');}catch(e){}
+    }
+  }
+
+  const isAdmin=toggle.checked;
   document.getElementById('admin-view').classList.toggle('hidden',!isAdmin);
   document.getElementById('user-view').classList.toggle('hidden',isAdmin);
   document.getElementById('view-name').textContent=isAdmin?'Admin-Ansicht':'Kunden-Ansicht';
