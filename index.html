@@ -687,7 +687,7 @@ textarea.form-input { resize:vertical; min-height:80px; }
           <div class="form-grid-2">
             <div style="grid-column:1/-1">
               <label class="form-label">Canvas / Slot (fester Link)</label>
-              <select id="bundleSlot" name="bundleSlot" class="form-input"></select>
+              <select id="bundleSlot" name="bundleSlot" class="form-input" onchange="onBundleSlotChange()"></select>
               <p class="text-xs text-slate-400 mt-1">Slot-ID bleibt stabil. Löschen deaktiviert — nur aktiv/inaktiv.</p>
             </div>
             <div style="grid-column:1/-1">
@@ -1989,25 +1989,31 @@ window.saveBundle=event=>{
   if(form.bundlePreis)form.bundlePreis.value=p24;
   const existing=bundles.find(b=>b.id===slotId);
   const data={id:slotId,__fixedSlot:true,legacy:false,categoryKey:meta.categoryKey,categoryLabel:__getCategoryLabel(meta.categoryKey),active:!!form.bundleActive?.checked,titel:form.bundleTitel.value,tarifName:form.bundleTarifName.value,angebotspreis:p24,preis24:p24,preis36:p36,einmalkosten:once,show24:show24,show36:show36,hasSim:typeof form.bundleHasSim!=='undefined'?!!form.bundleHasSim.checked:true,optionOnlineSchutz:form.bundleOptionOnlineSchutz.checked,optionTV:form.bundleOptionTV.checked,optionCustom:form.bundleOptionCustom.value,images,shopLink:form.bundleShopLink.value,gutscheincode:form.bundleGutschein.value,rechnungsweg:form.bundleRechnungsweg.value,start:form.bundleStart.value,end:form.bundleEnd.value,createdAt:existing?.createdAt||new Date().toISOString()};
-  const idx=bundles.findIndex(b=>b.id===slotId);if(idx!==-1){bundles[idx]=data;showMessage('Bundle-Slot aktualisiert!');}else{bundles.push(data);showMessage('Bundle-Slot gespeichert!');}
+  const idx=bundles.findIndex(b=>b.id===slotId);if(idx!==-1){bundles[idx]=data;showMessage(`✅ "${data.titel}" (${meta.label}) aktualisiert!`);}else{bundles.push(data);showMessage(`✅ "${data.titel}" in ${meta.label} gespeichert!`);}
   saveData();
-  // Slot-Select wieder freischalten
+
+  // Automatisch zum nächsten freien (leeren) Slot springen, damit klar sichtbar ist, dass gespeichert wurde
+  const curIdx=FIXED_BUNDLE_SLOTS.findIndex(s=>s.id===slotId);
+  let nextSlot=null;
+  for(let i=curIdx+1;i<FIXED_BUNDLE_SLOTS.length;i++){
+    const s=FIXED_BUNDLE_SLOTS[i];
+    const existingNext=bundles.find(b=>b.id===s.id);
+    if(!existingNext||!existingNext.titel){nextSlot=s;break;}
+  }
   const slotSel=document.getElementById('bundleSlot');
-  if(slotSel){slotSel.style.pointerEvents='';slotSel.style.background='';slotSel.style.color='';}
-  document.getElementById('bundle-submit-btn').textContent='Bundle Slot Speichern';
+  if(nextSlot && slotSel){
+    slotSel.value=nextSlot.id;
+    loadBundleSlotIntoForm(nextSlot.id);
+  }else{
+    // Kein leerer Folge-Slot gefunden: aktuellen Slot einfach neu laden, damit der gespeicherte Stand sichtbar ist
+    loadBundleSlotIntoForm(slotId);
+  }
 };
 window.deleteBundle=id=>{const i=bundles.findIndex(b=>b.id===id);if(i===-1)return;bundles[i].active=false;saveData();showMessage('Bundle deaktiviert.');};
 window.toggleBundleActive=id=>{const i=bundles.findIndex(b=>b.id===id);if(i===-1)return;bundles[i].active=!bundles[i].active;saveData();showMessage(bundles[i].active?'Bundle aktiviert.':'Bundle deaktiviert.');};
-window.editBundle=id=>{
-  const d=bundles.find(b=>b.id===id);if(!d)return;const f=document.getElementById('bundle-form');
-  if(f.bundleSlot){
-    populateBundleSlotOptions();
-    f.bundleSlot.value=id;
-    // Visuell sperren ohne disabled (disabled blockt required & submit)
-    f.bundleSlot.style.pointerEvents='none';
-    f.bundleSlot.style.background='#f1f5f9';
-    f.bundleSlot.style.color='#64748b';
-  }
+window.loadBundleSlotIntoForm=slotId=>{
+  const f=document.getElementById('bundle-form');if(!f)return;
+  const d=bundles.find(b=>b.id===slotId)||{};
   if(f.bundleActive)f.bundleActive.checked=typeof d.active==='boolean'?d.active:true;
   if(f.bundleShow24)f.bundleShow24.checked=typeof d.show24==='boolean'?d.show24:true;
   if(f.bundleShow36)f.bundleShow36.checked=typeof d.show36==='boolean'?d.show36:false;
@@ -2022,7 +2028,17 @@ window.editBundle=id=>{
   const cont=document.getElementById('bundle-images-container');cont.innerHTML='';
   if(Array.isArray(d.images)&&d.images.length>0)d.images.forEach(u=>addBundleImageField(u));else addBundleImageField();
   f.bundleShopLink.value=d.shopLink||'';f.bundleGutschein.value=d.gutscheincode||'';f.bundleRechnungsweg.value=d.rechnungsweg||'';f.bundleStart.value=d.start||'';f.bundleEnd.value=d.end||'';
-  document.getElementById('bundle-submit-btn').textContent='Bundle Slot Speichern';f.scrollIntoView({behavior:'smooth'});
+  document.getElementById('bundle-submit-btn').textContent=(d.titel?'Änderungen Speichern':'Bundle Slot Speichern');
+};
+window.onBundleSlotChange=()=>{
+  const sel=document.getElementById('bundleSlot');if(!sel||!sel.value)return;
+  loadBundleSlotIntoForm(sel.value);
+};
+window.editBundle=id=>{
+  const sel=document.getElementById('bundleSlot');
+  if(sel){populateBundleSlotOptions();sel.value=id;}
+  loadBundleSlotIntoForm(id);
+  document.getElementById('bundle-form').scrollIntoView({behavior:'smooth'});
 };
 window.addBundleImageField=(value='')=>{
   const cont=document.getElementById('bundle-images-container');const wrap=document.createElement('div');wrap.className='flex gap-2 items-center';
@@ -2101,7 +2117,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   try{switchView();}catch(e){}
   try{toggleFreeText(false);}catch(e){}
   try{addBundleImageField();}catch(e){}
-  try{populateBundleSlotOptions();}catch(e){}
+  try{populateBundleSlotOptions();const bsSel=document.getElementById('bundleSlot');if(bsSel&&bsSel.value)loadBundleSlotIntoForm(bsSel.value);}catch(e){}
 
   // Margin preview
   const ek=document.getElementById('einkaufspreis');
